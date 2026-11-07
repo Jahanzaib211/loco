@@ -1,0 +1,8 @@
+{"duration_s": 0.13, "finish_reason": "stop", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "pass", "task_id": "route-001", "trace_id": "778229fd-9969-4c0d-90f8-2f7779f5a26e"}
+{"duration_s": 2.59, "finish_reason": "stop", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "pass", "task_id": "route-002", "trace_id": "885d7997-ee72-43d5-ac4b-35ca52b62450"}
+{"duration_s": 3.58, "finish_reason": "length", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "fail", "task_id": "plan-001", "trace_id": "7ef47544-b3d0-4989-b362-1fef014e60be"}
+{"duration_s": 0.22, "finish_reason": "stop", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "pass", "task_id": "verify-001", "trace_id": "764129c5-32f4-43ac-a273-dc3e6920043c"}
+{"duration_s": 3.62, "finish_reason": "length", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "fail", "task_id": "refuse-001", "trace_id": "00a1cfa1-dfd1-4896-805d-49231518059b"}
+{"duration_s": 2.32, "finish_reason": "stop", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "pass", "task_id": "extract-001", "trace_id": "d8be9e31-825b-49a2-8fe9-d0c42a0c98cc"}
+{"duration_s": 3.54, "finish_reason": "length", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "fail", "task_id": "memory-review-001", "trace_id": "221f3775-c619-45bb-a69d-667f00a5c600"}
+{"duration_s": 3.5, "finish_reason": "length", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "fail", "task_id": "compact-001", "trace_id": "85568085-b90e-4940-9364-ca3ef95b43d8"}

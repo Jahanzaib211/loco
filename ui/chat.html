@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loco — Chat playground</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui/app.css">
+</head><body data-active="chat.html">
+<aside class="side">
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
+</aside>
+<main class="main">
+  <div class="top">
+    <div><h1>Chat playground</h1><div class="sub">same endpoint your apps use — pick a brain, watch the cost</div></div>
+    <div class="row"><span class="pill"><span class="dot live-dot"></span> <span id="liveTxt">live · ws</span></span></div>
+  </div>
+
+  <!-- 3D live flow: request → route → model → respond -->
+  <div class="scene-card card" style="margin-bottom:14px">
+    <div class="scene-head">
+      <h3>live request flow</h3>
+      <span class="badge acc">ws streaming</span>
+      <div class="legend">
+        <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>chat</span>
+        <span class="lg"><i style="background:#f6c177;color:#f6c177"></i>math</span>
+        <span class="lg"><i style="background:#3ddc97;color:#3ddc97"></i>code</span>
+        <span class="lg"><i style="background:#ff6b8a;color:#ff6b8a"></i>vision</span>
+        <span class="lg"><i style="background:#a78bfa;color:#a78bfa"></i>compact</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>cache hit</span>
+      </div>
+    </div>
+    <canvas id="chatScene" style="width:100%;height:260px;display:block"></canvas>
+    <div class="hud" style="position:absolute;top:10px;right:10px;font:9px ui-monospace;color:#8ab4f8">CHAT · 3D</div>
+  </div>
+
+  <div class="chat-grid">
+    <div class="card">
+      <h3>Request</h3>
+      <label>Model</label>
+      <select id="model"></select>
+      <div class="row" style="margin:8px 0 4px"><span class="tag" id="modelBackend">—</span><span class="muted" style="font-size:11px" id="modelRole"></span></div>
+      <label>System prompt</label>
+      <textarea id="system" style="min-height:64px">You are Loco, a precise local lab assistant. No filler, no fluff.</textarea>
+      <label>User</label>
+      <textarea id="user" autofocus>Reply with exactly: loco ok</textarea>
+      <div class="grid g2" style="gap:10px;margin-top:8px">
+        <div><label>Temperature</label><input id="temp" type="number" step="0.1" min="0" max="2" value="0"></div>
+        <div><label>Max tokens</label><input id="maxTokens" type="number" min="1" max="8192" value="400"></div>
+      </div>
+      <div class="row" style="margin:12px 0">
+        <input type="checkbox" id="stream" checked style="width:auto"><label for="stream" style="text-transform:none;letter-spacing:0">stream</label>
+        <span class="spacer"></span>
+        <button class="primary" id="send">Send</button>
+      </div>
+      <pre class="log" id="stats">stats will appear here…</pre>
+    </div>
+    <div class="card">
+      <h3>Response <span class="spacer"></span><span class="pill" id="routePill">—</span></h3>
+      <div class="chat-out" id="out"></div>
+    </div>
+  </div>
+</main>
+<script src="/ui/app.js"></script>
+<script src="/ui/scene.js"></script>
+<script>
+const META = Object.fromEntries(MODELS.map(m => [m.id, m]));
+$("#model").innerHTML = modelOptions("loco:auto");
+function paintModelMeta() { const m = META[$("#model").value]; $("#modelBackend").textContent = m.backend; $("#modelRole").textContent = m.role; }
+$("#model").addEventListener("change", paintModelMeta); paintModelMeta();
+
+async function send() {
+  const model = $("#model").value, out = $("#out"), stats = $("#stats");
+  const body = { model, messages: [
+    { role: "system", content: $("#system").value },
+    { role: "user", content: $("#user").value }],
+    temperature: Number($("#temp").value), max_tokens: Number($("#maxTokens").value), stream: $("#stream").checked };
+  out.textContent = ""; out.classList.add("stream-cursor"); stats.textContent = "routing…";
+  if (window.__locoChatState) { window.__locoChatState.phase = "gen"; window.__locoChatState.tokens = 0; window.__locoChatState.model = model; window.__locoChatState.prompt = $("#user").value || ""; }
+  const t0 = performance.now();
+  if (!body.stream) {
+    const r = await api("/v1/chat/completions", { method: "POST", body });
+    out.classList.remove("stream-cursor");
+    if (window.__locoChatState) { window.__locoChatState.phase = "done"; window.__locoChatState.model = (r.data && r.data.model) || model; window.__locoChatState.tokens = Number((r.data && r.data.usage && r.data.usage.completion_tokens) || 0); }
+    if (!r.ok) { out.textContent = "error: " + (r.data?.error?.message || r.status); return; }
+    const t = r.data.timings || {}, u = r.data.usage || {};
+    out.textContent = r.data.choices?.[0]?.message?.content ?? "(empty)";
+    $("#routePill").textContent = r.data.model || model;
+    stats.textContent = [
+      `route        ${model} → ${r.data.model}`,
+      `finish       ${r.data.choices?.[0]?.finish_reason}`,
+      `tokens       prompt ${u.prompt_tokens} · gen ${u.completion_tokens} · total ${u.total_tokens}`,
+      `speed        prompt ${(t.prompt_per_second||0).toFixed(0)} t/s · gen ${(t.predicted_per_second||0).toFixed(1)} t/s`,
+      `latency      ${(performance.now() - t0).toFixed(0)} ms`,
+    ].join("\n");
+    return;
+  }
+  const r = await fetch("/v1/chat/completions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
+  let gen = 0; const tStart = performance.now();
+  while (true) {
+    const { done, value } = await reader.read(); if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split("\n\n"); buf = parts.pop();
+    for (const p of parts) {
+      const line = p.replace(/^data:\s*/, "").trim();
+      if (!line || line === "[DONE]") continue;
+      try {
+        const j = JSON.parse(line);
+        if (j.model) $("#routePill").textContent = j.model;
+        const d = j.choices?.[0]?.delta?.content; if (d) { out.textContent += d; gen++; if (window.__locoChatState) { window.__locoChatState.tokens = gen; if (j.model) window.__locoChatState.model = j.model; } }
+        if (j.timings) {
+          stats.textContent = `route  ${model}\nspeed  prompt ${(j.timings.prompt_per_second||0).toFixed(0)} t/s · gen ${(j.timings.predicted_per_second||0).toFixed(1)} t/s\nchunks ${gen} · wall ${(performance.now()-tStart).toFixed(0)} ms`;
+        }
+      } catch {}
+    }
+  }
+  out.classList.remove("stream-cursor");
+  if (window.__locoChatState) { window.__locoChatState.phase = "done"; window.__locoChatState.tokens = gen; }
+  if (!stats.textContent.includes("speed")) stats.textContent = `route  ${model}\nchunks ${gen} · wall ${(performance.now()-tStart).toFixed(0)} ms`;
+}
+$("#send").addEventListener("click", send);
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") send(); });
+
+/* --- chat 3D scene: scope = one conversation round-trip ------------------ */
+(function () {
+  const COLS = { chat: [110, 168, 255], math: [246, 193, 117], code: [61, 220, 151], vision: [255, 107, 138], compact: [167, 139, 250], cache: [87, 230, 255] };
+  function colOf(ev) { if (ev && ev.cache_hit) return COLS.cache; const t = String((ev && ev.task) || "route").toLowerCase(); return COLS[t] || COLS.chat; }
+  window.__locoChatState = { phase: "idle", tokens: 0, model: "", prompt: "" };
+  window.__locoChatEv = null;
+  window.__locoChatPk = null;
+
+  function startChatScene() {
+    try { window.sceneSetCanvas("chatScene"); } catch (e) { console.error("sceneSetCanvas", e); }
+    try { window.sceneSetActor(function (ctx, now, dt) {
+      const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
+      C.clearRect(0, 0, cv ? cv.width : 900, cv ? cv.height : 260);
+      const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
+      const ox = fit.ox, oy = fit.oy, sc = fit.sc;
+      const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+      const st = window.__locoChatState;
+
+      /* 1. prompt block */
+      C.fillStyle = "#111927"; C.fillRect(X(-30), Y(-46), 190, 112);
+      C.strokeStyle = "rgba(110,168,255,.35)"; C.lineWidth = 1; C.stroke();
+      C.font = "700 10px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(138,149,173,.9)";
+      C.textAlign = "left"; C.fillText("PROMPT", X(-22), Y(-32));
+      const pw = Math.min(170, 12 + st.prompt.length * 4.6);
+      C.fillStyle = "rgba(110,168,255,.55)";
+      C.fillRect(X(-22), Y(-18), pw, 5);
+      C.fillStyle = "rgba(110,168,255,.3)";
+      C.fillRect(X(-22), Y(-4), pw * 0.6, 5);
+
+      /* 2. the brain that answered — tower height = tokens produced */
+      const gh = 46 + Math.min(120, st.tokens * 2.2);
+      const hot = st.phase === "gen";
+      C.fillStyle = hot ? "rgba(63,123,255,.8)" : "#1e2b47";
+      C.fillRect(X(212), Y(34 - gh), 76, gh);
+      C.strokeStyle = hot ? "rgba(87,230,255,.7)" : "rgba(87,230,255,.3)";
+      C.strokeRect(X(212), Y(34 - gh), 76, gh);
+      if (hot) { C.fillStyle = "rgba(87,230,255,.18)"; C.fillRect(X(212), Y(34 - gh), 76, gh); }
+
+      /* 3. response block fills as tokens arrive */
+      C.fillStyle = "#111927"; C.fillRect(X(336), Y(-46), 260, 112);
+      C.strokeStyle = "rgba(61,220,151,.35)"; C.stroke();
+      C.fillStyle = "rgba(138,149,173,.9)"; C.fillText("RESPONSE", X(348), Y(-32));
+      C.fillStyle = "rgba(87,230,255,.8)";
+      const rows = Math.min(6, Math.ceil(st.tokens / 8));
+      for (let i = 0; i < rows; i++) C.fillRect(X(348), Y(-18) + i * 15, 88 + (i % 3) * 48, 5);
+
+      /* 4. the wire between them, coloured by task */
+      C.strokeStyle = "rgba(110,168,255,.22)"; C.lineWidth = 2;
+      C.beginPath(); C.moveTo(X(160), Y(10)); C.lineTo(X(212), Y(10)); C.stroke();
+      C.beginPath(); C.moveTo(X(288), Y(10)); C.lineTo(X(336), Y(10)); C.stroke();
+
+      /* 5. labels */
+      C.font = "700 10px ui-monospace, Menlo, monospace";
+      C.fillStyle = "rgba(138,149,173,.9)"; C.textAlign = "center";
+      C.fillText("REQUEST", X(65), Y(82));
+      C.fillText((st.model || "routing").toUpperCase().slice(0, 22), X(250), Y(82));
+      C.fillText("RESPONSE", X(466), Y(82));
+      C.textAlign = "left";
+
+      /* 6. live packet on the wire */
+      const pk = window.__locoChatPk;
+      if (pk) {
+        const a = pk.pts[pk.seg], b = pk.pts[pk.seg + 1], t = pk.segT;
+        const p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
+        const proj = { x: X(p.x), y: Y(p.y), f: 1 };
+        const col = colOf(window.__locoChatEv || {});
+        const r = 6;
+        const g = C.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, r * 3.4);
+        g.addColorStop(0, "rgba(" + col.join(",") + ",0.95)");
+        g.addColorStop(0.35, "rgba(" + col.join(",") + ",0.34)");
+        g.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+        C.fillStyle = g; C.beginPath(); C.arc(proj.x, proj.y, r * 3.4, 0, Math.PI * 2); C.fill();
+        C.fillStyle = "rgba(255,255,255,.9)"; C.beginPath(); C.arc(proj.x, proj.y, r * 0.45, 0, Math.PI * 2); C.fill();
+      }
+    }); } catch (e) { console.error("sceneSetActor", e); }
+    window.__locoChatMounted = true;
+  }
+
+  /* live feed → scene state */
+  onWs(function (msg) {
+    if (msg.type === "route") {
+      window.__locoChatEv = msg;
+      window.__locoChatState.model = msg.model || "";
+      window.__locoChatState.phase = "done";
+      window.__locoChatPk = { pts: [{ x: 65, y: 10, z: 0 }, { x: 250, y: 10, z: 0 }, { x: 466, y: 10, z: 0 }], seg: 0, segT: 0 };
+    }
+  });
+
+  if (document.getElementById("chatScene")) startChatScene();
+  window.__locoChatScene = { start: startChatScene, mount: startChatScene };
+})();
+</script>
+</body>
+</html>

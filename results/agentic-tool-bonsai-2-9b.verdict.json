@@ -1,0 +1,23 @@
+{
+  "baseline": null,
+  "baseline_summary": null,
+  "candidate": "results/agentic-tool-bonsai-2-9b.jsonl",
+  "candidate_summary": {
+    "error": 0,
+    "fail": 6,
+    "pass": 4,
+    "pass_rate": 0.4,
+    "total": 10
+  },
+  "created_at": 1794001634.137759,
+  "flips": null,
+  "gate": {
+    "passed": false,
+    "reasons": [
+      "pass rate 0.400 below floor 0.500",
+      "no baseline recorded \u2014 absolute floor only"
+    ]
+  },
+  "max_drop_points": 5.0,
+  "min_rate": 0.5
+}

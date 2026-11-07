@@ -1,0 +1,259 @@
+#!/usr/bin/env python3
+"""Measured Loco evaluation/export harness.
+
+This script never sends data over the network. `agentic` calls the configured
+local Loco server; `report` and `export` read the local SQLite store only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from loco import memory  # noqa: E402
+from loco import exporter  # noqa: E402
+
+
+def _percent(numerator, denominator):
+    if not denominator:
+        return None
+    return round(100 * numerator / denominator, 1)
+
+
+def cmd_report(args) -> int:
+    with memory.conn() as c:
+        total = c.execute("SELECT count(*) FROM route_log").fetchone()[0]
+        successful = c.execute(
+            "SELECT count(*) FROM route_log "
+            "WHERE action NOT IN ('busy','error','overloaded','stream-error') "
+            "AND action NOT LIKE 'http-5%' AND action NOT LIKE 'http-4%'"
+        ).fetchone()[0]
+        cache_hits = c.execute(
+            "SELECT count(*) FROM route_log WHERE cache_hit = 1"
+        ).fetchone()[0]
+        overloaded = c.execute(
+            "SELECT count(*) FROM route_log WHERE action = 'overloaded'"
+        ).fetchone()[0]
+        latencies = [row[0] for row in c.execute(
+            "SELECT latency_ms FROM route_log WHERE latency_ms IS NOT NULL"
+        ).fetchall()]
+        rows = c.execute(
+            "SELECT action, count(*) FROM route_log GROUP BY action"
+        ).fetchall()
+    latencies.sort()
+    p50 = latencies[int((len(latencies) - 1) * 0.50)] if latencies else None
+    p95 = latencies[int((len(latencies) - 1) * 0.95)] if latencies else None
+    report = {
+        "generated_at": time.time(),
+        "rows": total,
+        "successful_rate_pct": _percent(successful, total),
+        "cache_hit_rate_pct": _percent(cache_hits, total),
+        "overloaded_rows": overloaded,
+        "latency_ms_p50": round(p50, 1) if p50 is not None else None,
+        "latency_ms_p95": round(p95, 1) if p95 is not None else None,
+        "actions": dict(rows),
+    }
+    rendered = json.dumps(report, indent=2)
+    print(rendered)
+    if args.out:
+        destination = Path(args.out)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(rendered + "\n")
+    return 0
+
+
+def cmd_export(args) -> int:
+    output = exporter.export_jsonl(
+        start=args.start, end=args.end,
+        limit_traces=args.limit, fmt=args.format,
+    )
+    if args.out:
+        destination = Path(args.out)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(output)
+        print(f"wrote {destination} ({len(output.encode())} bytes)")
+    else:
+        print(output, end="")
+    return 0
+
+
+def _http_json(url, payload=None, timeout=300):
+    data = None
+    headers = {"Content-Type": "application/json"}
+    method = "GET"
+    if payload is not None:
+        data = json.dumps(payload).encode()
+        method = "POST"
+    request = urllib.request.Request(url, data=data, headers=headers,
+                                     method=method)
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode()), response.headers
+
+
+def _load_tasks(path, limit):
+    tasks = []
+    with open(path) as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            tasks.append(json.loads(line))
+            if limit and len(tasks) >= limit:
+                break
+    return tasks
+
+
+def _tool_schemas_by_name(url):
+    data, _ = _http_json(f"{url.rstrip('/')}/tools", timeout=5)
+    out = {}
+    for item in data.get("data", []):
+        function = item.get("function", {})
+        out[function.get("name")] = item
+    return out
+
+
+def _matches(call, expected):
+    if not isinstance(call, dict):
+        return False
+    function = call.get("function", {})
+    name = function.get("name")
+    expected_tool = (expected or {}).get("tool")
+    if expected_tool and name != expected_tool:
+        return False
+    arguments = function.get("arguments")
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            return False
+    expected_args = (expected or {}).get("arguments")
+    if expected_args:
+        if not isinstance(arguments, dict):
+            return False
+        for key, value in expected_args.items():
+            if arguments.get(key) != value:
+                return False
+    return True
+
+
+def _verify(response, expect):
+    choices = response.get("choices") or []
+    if not choices:
+        return False, "no choices"
+    choice = choices[0]
+    message = choice.get("message", {})
+    tool_names = [(call.get("function") or {}).get("name")
+                  for call in message.get("tool_calls", [])]
+    if expect.get("must_not_tool"):
+        banned = expect["must_not_tool"]
+        if banned in tool_names:
+            return False, f"called forbidden tool: {banned}"
+        return True, "no banned tool call"
+    if expect.get("answer_contains"):
+        content = str(message.get("content", "")).lower()
+        parts = [p.lower() for p in expect["answer_contains"]]
+        return all(p in content for p in parts), "content check"
+    expected_tool = expect.get("tool") or expect.get("arguments")
+    candidates = message.get("tool_calls", []) or []
+    for call in candidates:
+        if _matches(call, expect):
+            return True, f"tool {expected_tool} called"
+    return False, f"expected {expected_tool}; saw {tool_names}"
+
+
+def cmd_agentic(args) -> int:
+    url = args.url.rstrip("/")
+    tasks = _load_tasks(Path(args.tasks), args.limit)
+    try:
+        tool_map = _tool_schemas_by_name(url)
+    except Exception as exc:
+        print(f"refusing to run: {url} is not reachable ({exc})", file=sys.stderr)
+        return 2
+    destination = Path(args.out) if args.out else None
+    if destination:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+    results = []
+    for task in tasks:
+        schemas = [tool_map[name] for name in task.get("tools", [])
+                   if name in tool_map]
+        payload = {"model": args.model,
+                   "messages": task["messages"],
+                   "temperature": 0,
+                   "max_tokens": args.max_tokens}
+        if schemas:
+            payload["tools"] = schemas
+            payload["tool_choice"] = "auto"
+        started = time.time()
+        try:
+            response, headers = _http_json(f"{url}/chat/completions", payload,
+                                           timeout=args.timeout)
+            ok, reason = _verify(response, task.get("expect", {}))
+            status = "pass" if ok else "fail"
+            finish = (response.get("choices") or [{}])[0].get("finish_reason")
+            row = {"task_id": task["id"], "model": args.model, "status": status,
+                   "reason": reason, "finish_reason": finish,
+                   "duration_s": round(time.time() - started, 2),
+                   "trace_id": headers.get("x-loco-trace-id")}
+        except urllib.error.HTTPError as exc:
+            row = {"task_id": task["id"], "model": args.model,
+                   "status": "error",
+                   "reason": f"http-{exc.code}",
+                   "duration_s": round(time.time() - started, 2)}
+        except Exception as exc:
+            row = {"task_id": task["id"], "model": args.model,
+                   "status": "error", "reason": f"{exc}"[:200],
+                   "duration_s": round(time.time() - started, 2)}
+        results.append(row)
+        if destination:
+            with destination.open("a") as handle:
+                handle.write(json.dumps(row, sort_keys=True) + "\n")
+        print(f"{row['status']:4} {task['id']:12} {row['reason']}")
+    counts = {k: sum(r["status"] == k for r in results)
+              for k in ("pass", "fail", "error")}
+    summary = {"model": args.model,
+               "total": len(results),
+               **counts}
+    print(json.dumps(summary, indent=2))
+    return 1 if args.require and counts["pass"] != len(results) else 0
+
+
+def build_parser():
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("report", help="route_log health and latency statistics")
+    p.add_argument("--out")
+    p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser("export", help="redacted JSONL export from local SQLite")
+    p.add_argument("--format", choices=["events", "sft"], default="events")
+    p.add_argument("--from", dest="start", type=float)
+    p.add_argument("--to", dest="end", type=float)
+    p.add_argument("--limit", type=int, default=100)
+    p.add_argument("--out")
+    p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("agentic", help="measure local-model tool calls")
+    p.add_argument("--url", default="http://127.0.0.1:8200/v1")
+    p.add_argument("--model", default="loco:auto")
+    p.add_argument("--tasks", default=str(ROOT / "evals/agentic_tasks.jsonl"))
+    p.add_argument("--limit", type=int)
+    p.add_argument("--timeout", type=float, default=300)
+    p.add_argument("--max-tokens", type=int, default=256)
+    p.add_argument("--out", default=str(ROOT / "results/agentic-eval.jsonl"))
+    p.add_argument("--require", action="store_true")
+    p.set_defaults(func=cmd_agentic)
+    return parser
+
+
+if __name__ == "__main__":
+    args = build_parser().parse_args()
+    raise SystemExit(args.func(args))

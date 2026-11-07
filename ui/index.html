@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loco — Lab Overview</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui/app.css">
+</head><body data-active="index.html">
+<aside class="side">
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
+</aside>
+<main class="main">
+  <div class="top">
+    <div>
+      <h1>Lab overview</h1>
+      <div class="sub">request → deterministic route → VRAM gate → reply → memory write (async)</div>
+    </div>
+    <div class="row">
+      <span class="pill"><span class="dot live-dot" id="liveDot"></span> <span id="liveTxt">connecting…</span></span>
+      <span class="pill">uptime <b id="up">—</b></span>
+      <span class="pill"><span class="dot acc"></span> ws feed</span>
+    </div>
+  </div>
+
+  <!-- ======================= 3D LIVE PIPELINE ======================= -->
+  <div class="scene-card card">
+    <div class="scene-head">
+      <h3>live pipeline · 3d</h3>
+      <span class="badge acc">ws streaming</span>
+      <div class="legend">
+        <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>chat</span>
+        <span class="lg"><i style="background:#f6c177;color:#f6c177"></i>math</span>
+        <span class="lg"><i style="background:#3ddc97;color:#3ddc97"></i>code</span>
+        <span class="lg"><i style="background:#ff6b8a;color:#ff6b8a"></i>vision</span>
+        <span class="lg"><i style="background:#a78bfa;color:#a78bfa"></i>compact</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>cache hit</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="pill">every packet is a real request</span>
+    </div>
+    <div class="scene-stage">
+      <canvas id="scene"></canvas>
+      <div class="hud tl">
+        <span class="hud-chip">routes <b id="hudRoutes">0</b></span>
+        <span class="hud-chip">ws events <b id="hudEvents">0</b></span>
+        <span class="hud-chip grn">packets in flight <b id="hudFly">live</b></span>
+      </div>
+      <div class="hud tr">
+        <span class="hud-chip">apps → loco → gate → brain → db</span>
+        <span class="hud-chip amb">towers = brains · height = vram</span>
+      </div>
+      <div class="hud bl">
+        <span class="hud-chip">mouse = parallax · idle heartbeat = pipeline pulse</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= ECG + EVENT TICKER ======================= -->
+  <div class="grid g2" style="grid-template-columns:1.7fr 1fr;margin-top:14px">
+    <div class="card ecg-card">
+      <div class="ecg-head">
+        <h3>route pulse · latency ecg</h3>
+        <span class="badge">26s window</span>
+        <span class="spacer"></span>
+        <span class="muted" style="font-size:11px">spike height = latency · color = task · dim = cache hit</span>
+      </div>
+      <div class="ecg-body">
+        <canvas id="ecg"></canvas>
+        <div class="ecg-stats" id="ecgStats">waiting for traffic…</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>live events <span class="spacer"></span><span class="pill"><span class="dot live-dot"></span> ws</span></h3>
+      <div class="ticker" id="ticker"><div class="empty">waiting for traffic… send a chat to wake the lab</div></div>
+    </div>
+  </div>
+
+  <!-- ============================ KPIs ============================ -->
+  <div class="grid g4" style="margin-top:14px">
+    <div class="card">
+      <h3>GPU VRAM</h3>
+      <div class="kpi" id="gpuUsed">—</div>
+      <small class="mini">free <b id="gpuFree">—</b> · util <b id="gpuUtil">—</b></small>
+      <div class="bar" style="margin-top:10px"><i id="gpuBar" style="width:0%"></i></div>
+    </div>
+    <div class="card">
+      <h3>Routes served</h3>
+      <div class="kpi" id="routes">—</div>
+      <small class="mini">cached hits <b id="cacheHits">—</b></small>
+    </div>
+    <div class="card">
+      <h3>Memories stored</h3>
+      <div class="kpi" id="notes">—</div>
+      <small class="mini">pinned <b id="pinned">—</b></small>
+    </div>
+    <div class="card">
+      <h3>Embeddings</h3>
+      <div class="kpi">384<span class="u">d</span></div>
+      <small class="mini">bge-small-en-v1.5 · resident · :8210</small>
+    </div>
+  </div>
+
+  <div id="presetBanner" style="margin-top:14px"></div>
+
+  <!-- ========================= REGISTRY ========================= -->
+  <div class="sec">model registry <span class="n">roles measured · control live</span></div>
+  <div class="grid g3" id="registry"></div>
+
+  <!-- ========================= PIPELINE ========================= -->
+  <div class="sec">request lifecycle</div>
+  <div class="flow" id="pipeline">
+    <div class="step"><b>apps</b><small>curl · custom clients · any harness</small></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>loco :8200</b><small>parse · classify (regex) · tag</small></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>VRAM gate</b><small>GPU query · evict LRU if needed</small></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>backend</b><small>managed backend :11434 (gemma)<br>local GGUF stack :8080 (six GGUFs)</small></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>respond</b><small>stream or buffered<br>+ route_log write</small></div>
+    <div class="arrow">→</div>
+    <div class="step"><b>memory async</b><small>embed → sqlite<br>score · reinforce · decay</small></div>
+  </div>
+
+  <div class="footer">
+    Full doctrine: <a href="/ui/pipeline.html">Pipeline &amp; identity</a> ·
+    every endpoint, live: <a href="/ui/api.html">API catalog</a> ·
+    controls above load/unload real models · all numbers measured on this rig, not vibes.
+  </div>
+</main>
+<script src="/ui/app.js"></script>
+<script src="/ui/scene.js"></script>
+<script src="/ui/index.js"></script>
+</body>
+</html>

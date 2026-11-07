@@ -1,0 +1,8 @@
+{"duration_s": 11.89, "finish_reason": "stop", "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "content check", "status": "pass", "task_id": "route-001", "trace_id": "31ad64d1-1248-4dff-8c77-a62f0d16a732"}
+{"duration_s": 1.11, "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "http-503", "status": "error", "task_id": "route-002"}
+{"duration_s": 1.1, "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "http-503", "status": "error", "task_id": "plan-001"}
+{"duration_s": 1.13, "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "http-503", "status": "error", "task_id": "verify-001"}
+{"duration_s": 1.11, "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "http-503", "status": "error", "task_id": "refuse-001"}
+{"duration_s": 1.1, "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "http-503", "status": "error", "task_id": "extract-001"}
+{"duration_s": 1.11, "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "http-503", "status": "error", "task_id": "memory-review-001"}
+{"duration_s": 1.12, "model": "huihui_ai/gemma-4-abliterated:e4b", "reason": "http-503", "status": "error", "task_id": "compact-001"}

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loco — Memory bank</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui/app.css">
+</head><body data-active="memory.html">
+<aside class="side">
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
+</aside>
+<main class="main">
+  <div class="top">
+    <div><h1>Memory bank</h1><div class="sub">atomic notes · cosine + reinforcement scoring · decay, never silent delete</div></div>
+    <span class="pill"><span class="dot live-dot"></span> <span id="liveTxt">live · ws</span></span>
+  </div>
+  <div class="grid g2" style="grid-template-columns:1fr 380px">
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <h3>Pending memory approvals</h3>
+        <p class="muted" style="font-size:12px">Nothing is written to long-term memory without your approval or explicit <code>/v1/memory/add</code> call. Approve, edit, or reject each proposal.</p>
+        <div id="proposals" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+      <div class="card">
+        <h3>Search memories</h3>
+        <div class="row"><input id="q" placeholder="what do we know about…" style="flex:1"><button class="primary" id="searchBtn">Search</button></div>
+        <div class="muted" style="margin-top:6px;font-size:11px">retrieval mode: <b id="memoryMode">hybrid</b></div>
+        <div id="results" style="margin-top:12px;display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+      <div class="card">
+        <h3>Ingest a memory</h3>
+        <textarea id="note" placeholder="one atomic fact per memory…"></textarea>
+        <div class="row" style="margin-top:8px">
+          <div style="flex:1"><label>Importance (0-1)</label><input id="imp" type="range" min="0" max="1" step="0.05" value="0.6"></div>
+          <label style="display:flex;align-items:center;gap:6px;text-transform:none"><input type="checkbox" id="pin"> pin (never evict)</label>
+          <button class="primary" id="addBtn">Add</button>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <h3>Bank stats</h3>
+        <div class="grid g2" style="gap:10px">
+          <div class="card" style="background:var(--panel2)"><div class="kpi" id="sNotes">—</div><small>notes</small></div>
+          <div class="card" style="background:var(--panel2)"><div class="kpi" id="sPinned">—</div><small>pinned</small></div>
+          <div class="card" style="background:var(--panel2)"><div class="kpi" id="sCache">—</div><small>cache rows</small></div>
+          <div class="card" style="background:var(--panel2)"><div class="kpi" id="sHits">—</div><small>cache hits</small></div>
+          <div class="card" style="background:var(--panel2)"><div class="kpi" id="sPending">—</div><small>pending approvals</small></div>
+          <div class="card" style="background:var(--panel2)"><div class="kpi" id="sSuperseded">—</div><small>superseded</small></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>How scoring works</h3>
+        <pre style="font-size:11px">score = .50·semantic cosine
+      + .25·FTS5/BM25 keyword
+      + .15·importance + .10·access
+      +  .3 pinned boost
+decay   30-day half-life (pins bypass)</pre>
+        <p class="muted" style="font-size:12px">This is fully local: FTS5 + cosine over stored 384-dim embeddings. The sleep/consolidation job is planned, not active by default. Tool calls that create candidates should create proposals, not silent writes.</p>
+      </div>
+      <div class="card">
+        <h3>Reinforce from search</h3>
+        <p class="muted" style="font-size:12px">Tick the hits that were actually useful, then reinforce:</p>
+        <div class="row"><button id="reinforceBtn">Reinforce selected</button><span class="muted" id="selCount">0 selected</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="scene-card card" style="margin-top:14px;border-radius:11px">
+    <div class="scene-head">
+      <h3>live pipeline · 3D</h3>
+      <span class="badge acc">ws streaming</span>
+      <div class="legend">
+        <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>apps</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>loco</span>
+        <span class="lg"><i style="background:#87c5ff;color:#87c5ff"></i>vram gate</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>backend</span>
+        <span class="lg"><i style="background:#61d1b5;color:#61d1b5"></i>memory db</span>
+        <span class="lg"><i style="background:#3ddc97;color:#3ddc97"></i>ingest</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="pill">data pulse</span>
+    </div>
+    <canvas id="memoryScene" style="width:100%;height:280px;display:block"></canvas>
+    <div class="hud" style="position:absolute;top:8px;right:8px;pointer-events:none;font:9px ui-monospace;color:#8ab4f8">MEM · pulse</div>
+  </div>
+</main>
+<script src="/ui/app.js"></script>
+<script src="/ui/scene.js"></script>
+<script>
+let selected = new Set();
+async function stats() {
+  const r = await api("/v1/memory/stats");
+  if (!r.ok) return;
+  $("#sNotes").textContent = fmtNum(r.data.notes);
+  $("#sPinned").textContent = fmtNum(r.data.pinned);
+  $("#sCache").textContent = fmtNum(r.data.cache_entries);
+  $("#sHits").textContent = fmtNum(r.data.cache_hits);
+  $("#sPending").textContent = fmtNum(r.data.pending_proposals);
+  $("#sSuperseded").textContent = fmtNum(r.data.superseded);
+  if (window.__locoMemState) {
+    window.__locoMemState.notes = Number(r.data.notes || 0);
+    window.__locoMemState.pinned = Number(r.data.pinned || 0);
+    window.__locoMemState.pending = Number(r.data.pending_proposals || 0);
+  }
+}
+
+async function proposals() {
+  $("#proposals").innerHTML = '<div class="muted">checking…</div>';
+  const r = await api("/v1/memory/proposals?status=pending&limit=25");
+  if (!r.ok) { $("#proposals").innerHTML = '<div class="bad">failed to load proposals</div>'; return; }
+  const rows = r.data?.proposals || [];
+  $("#proposals").innerHTML = rows.length ? rows.map(p => `
+    <div class="card" data-proposal-id="${p.id}" style="background:var(--panel2);display:flex;flex-direction:column;gap:8px">
+      <div class="row"><span class="tag">importance ${p.importance}</span><span class="tag">${escapeHtml(p.memory_type)}</span></div>
+      <textarea style="min-height:88px">${escapeHtml(p.content)}</textarea>
+      <div class="row"><button class="primary" data-action="approve">Approve</button><button data-action="reject">Reject</button></div>
+      <div class="muted" style="font-size:11px">${p.reason ? escapeHtml(p.reason) : "no reason supplied"}</div>
+    </div>`).join("") : '<div class="muted">nothing pending — every durable memory here was explicitly approved.</div>';
+  $$("#proposals [data-action]").forEach(btn => btn.addEventListener("click", async () => {
+    const card = btn.closest("[data-proposal-id]");
+    const id = card.dataset.proposalId;
+    const edited = card.querySelector("textarea").value.trim();
+    if (btn.dataset.action === "reject") {
+      const r = await api(`/v1/memory/proposals/${id}/reject`, {method: "POST", body: {}});
+      toast(r.ok ? "proposal rejected" : "reject failed");
+    } else if (edited) {
+      const original = card.querySelector("textarea");
+      const res = await api(`/v1/memory/proposals/${id}/approve`, {method: "POST", body: {content: edited}});
+      toast(res.ok ? "approved to memory" : "approval failed");
+    } else {
+      const res = await api(`/v1/memory/proposals/${id}/approve`, {method: "POST", body: {}});
+      toast(res.ok ? "approved to memory" : "approval failed");
+    }
+    proposals(); stats();
+  }));
+}
+async function search() {
+  const q = $("#q").value.trim(); if (!q) return;
+  $("#results").innerHTML = '<div class="muted">searching…</div>';
+  const r = await api("/v1/memory/search", { method: "POST", body: { query: q, k: 8 } });
+  selected.clear(); $("#selCount").textContent = "0 selected";
+  if (!r.ok) { $("#results").innerHTML = '<div class="bad">error: ' + (r.data?.error?.message || r.status) + "</div>"; return; }
+  $("#memoryMode").textContent = r.data.memory_mode || "hybrid";
+  if (window.__locoMemState) { window.__locoMemState.beam = 900; }
+  const rows = r.data.results || [];
+  $("#results").innerHTML = rows.length ? rows.map(m => `
+    <label class="card" style="background:var(--panel2);display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+      <input type="checkbox" data-id="${m.id}" style="width:auto;margin-top:3px">
+      <div style="min-width:0"><div style="font-size:13px">${escapeHtml(m.content)}</div>
+      <div class="row" style="margin-top:6px"><span class="tag">cos ${m.cosine}</span><span class="tag">score ${m.score}</span><span class="tag">imp ${m.importance}</span><span class="tag">acc ${m.access_count}</span>${m.pinned ? '<span class="tag">pinned</span>' : ""}</div></div>
+    </label>`).join("") : '<div class="muted">no memories yet — add some below or from chat.</div>';
+  $$("#results input[type=checkbox]").forEach(cb => cb.addEventListener("change", () => {
+    cb.checked ? selected.add(cb.dataset.id) : selected.delete(cb.dataset.id);
+    $("#selCount").textContent = selected.size + " selected";
+  }));
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+$("#searchBtn").addEventListener("click", search);
+$("#q").addEventListener("keydown", e => e.key === "Enter" && search());
+$("#addBtn").addEventListener("click", async () => {
+  const content = $("#note").value.trim(); if (!content) return;
+  const r = await api("/v1/memory/add", { method: "POST", body: { content, importance: Number($("#imp").value), pinned: $("#pin").checked, source: "ui" } });
+  toast(r.ok ? "memory saved" : "failed"); $("#note").value = ""; stats();
+});
+$("#reinforceBtn").addEventListener("click", async () => {
+  if (!selected.size) return toast("select memories first");
+  await api("/v1/memory/reinforce", { method: "POST", body: { ids: [...selected] } });
+  toast("reinforced " + selected.size); stats();
+});
+stats();
+proposals();
+let _wsT = null;
+let _wsP = null;
+onWs((msg) => {
+  if (msg.type === "memory") {
+    if (msg.action === "add") toast("memory stored");
+    else if (msg.action === "reinforce") toast("reinforced");
+    else if (String(msg.action || "").startsWith("proposal")) toast("memory proposal updated");
+    clearTimeout(_wsT); _wsT = setTimeout(stats, 400);
+    clearTimeout(_wsP); _wsP = setTimeout(proposals, 400);
+  } else if (msg.type === "route" && msg.cache_hit) {
+    clearTimeout(_wsT); _wsT = setTimeout(stats, 400);
+  }
+});
+</script>
+
+<script>
+/* memory 3D scene: scope = the vault — notes orbit the db, retrieval beams in */
+(function(){
+  window.__locoMemState = { notes: 0, pinned: 0, pending: 0, beam: 0, beamT: 0 };
+  window.sceneSetCanvas("memoryScene");
+  window.sceneSetActor(function (ctx, now, dt) {
+    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
+    C.clearRect(0, 0, cv ? cv.width : 900, cv ? cv.height : 280);
+    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
+    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
+    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+    const st = window.__locoMemState;
+
+    /* the drum: sqlite + fts5 + 384-dim vectors */
+    const cx = X(150), cy = Y(60);
+    C.fillStyle = "#0f2b22"; C.beginPath(); C.ellipse(cx, cy, 62, 20, 0, 0, Math.PI * 2); C.fill();
+    C.fillStyle = "#143a2d"; C.fillRect(cx - 62, cy - 54, 124, 54);
+    C.fillStyle = "#0f2b22"; C.beginPath(); C.ellipse(cx, cy - 54, 62, 20, 0, 0, Math.PI * 2); C.fill();
+    C.strokeStyle = "rgba(61,220,151,.45)"; C.lineWidth = 1; C.stroke();
+    /* heartbeat rings */
+    const beat = (now % 2600) / 2600;
+    C.strokeStyle = "rgba(61,220,151," + (0.4 * (1 - beat)).toFixed(3) + ")"; C.lineWidth = 2;
+    C.beginPath(); C.ellipse(cx, cy - 54, 62 + beat * 90, 20 + beat * 30, 0, 0, Math.PI * 2); C.stroke();
+
+    /* orbiting notes */
+    const total = Math.max(1, st.notes);
+    const shown = Math.min(18, total);
+    for (let i = 0; i < shown; i++) {
+      const a = now / 2400 + (i / shown) * Math.PI * 2;
+      const rx = 150 + Math.cos(a) * (110 + (i % 3) * 26);
+      const ry = cy - 40 + Math.sin(a) * (34 + (i % 4) * 8);
+      const pinned = i < st.pinned;
+      C.beginPath(); C.arc(X(rx), Y(ry), pinned ? 4.4 : 3, 0, Math.PI * 2);
+      C.fillStyle = pinned ? "rgba(246,193,119,.95)" : "rgba(87,230,255,.75)";
+      C.fill();
+    }
+
+    /* retrieval beam when a search lands */
+    if (st.beam > 0) {
+      st.beam -= dt;
+      C.strokeStyle = "rgba(167,139,250," + Math.max(0, st.beam / 900).toFixed(3) + ")";
+      C.lineWidth = 2;
+      C.beginPath(); C.moveTo(X(620), Y(20)); C.lineTo(cx, cy - 54); C.stroke();
+      C.fillStyle = "rgba(167,139,250,.8)";
+      C.font = "700 10px ui-monospace, Menlo, monospace"; C.textAlign = "right";
+      C.fillText("RETRIEVAL", X(616), Y(14));
+      C.textAlign = "left";
+    }
+
+    /* counters */
+    C.font = "700 10px ui-monospace, Menlo, monospace"; C.textAlign = "left";
+    C.fillStyle = "rgba(138,149,173,.9)";
+    C.fillText("VAULT · SQLITE + FTS5 + 384D", X(30), Y(150));
+    C.fillStyle = "rgba(61,220,151,.95)";
+    C.fillText(st.notes + " notes · " + st.pinned + " pinned · " + st.pending + " pending", X(30), Y(168));
+  });
+  onWs(function (msg) {
+    if (msg.type === "memory") {
+      const st = window.__locoMemState;
+      if (msg.action === "add") st.notes++;
+      if (msg.action === "proposal-approved") st.notes++;
+      if (msg.action === "proposal") st.pending++;
+      if (msg.action === "proposal-rejected" || msg.action === "proposal-approved") st.pending = Math.max(0, st.pending - 1);
+    }
+  });
+})();
+</script>
+</body>
+</html>

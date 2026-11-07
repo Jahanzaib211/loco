@@ -1,0 +1,32 @@
+{
+  "baseline": "results/agentic-role-nemotron-3-5-bolt-e4b.jsonl",
+  "baseline_summary": {
+    "error": 0,
+    "fail": 2,
+    "pass": 6,
+    "pass_rate": 0.75,
+    "total": 8
+  },
+  "candidate": "results/agentic-role-saluki.jsonl",
+  "candidate_summary": {
+    "error": 0,
+    "fail": 1,
+    "pass": 7,
+    "pass_rate": 0.875,
+    "total": 8
+  },
+  "created_at": 1794003262.863144,
+  "flips": {
+    "improved": [
+      "memory-review-001"
+    ],
+    "new_error": [],
+    "regressed": []
+  },
+  "gate": {
+    "passed": true,
+    "reasons": []
+  },
+  "max_drop_points": 5.0,
+  "min_rate": 0.5
+}

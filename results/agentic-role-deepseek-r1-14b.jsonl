@@ -1,0 +1,8 @@
+{"duration_s": 42.72, "finish_reason": "length", "model": "deepseek-r1-14b", "reason": "content check", "status": "fail", "task_id": "route-001", "trace_id": "f7ee74cb-026a-47d1-89a5-e929f94b0ffa"}
+{"duration_s": 11.22, "finish_reason": "length", "model": "deepseek-r1-14b", "reason": "content check", "status": "fail", "task_id": "route-002", "trace_id": "f4f7ec15-abfe-46d9-8290-8b3099085ede"}
+{"duration_s": 11.28, "finish_reason": "length", "model": "deepseek-r1-14b", "reason": "content check", "status": "fail", "task_id": "plan-001", "trace_id": "67e13780-9a6a-4875-848a-f715840c3627"}
+{"duration_s": 11.23, "finish_reason": "length", "model": "deepseek-r1-14b", "reason": "content check", "status": "fail", "task_id": "verify-001", "trace_id": "69a61b8a-1391-49ad-99e9-e1658c572b6e"}
+{"duration_s": 11.17, "finish_reason": "length", "model": "deepseek-r1-14b", "reason": "content check", "status": "fail", "task_id": "refuse-001", "trace_id": "25ac2844-7d4b-4ff0-95e6-ed89a2387681"}
+{"duration_s": 11.55, "finish_reason": "length", "model": "deepseek-r1-14b", "reason": "content check", "status": "fail", "task_id": "extract-001", "trace_id": "269e38a0-5695-4824-9459-21821d77acc8"}
+{"duration_s": 11.65, "finish_reason": "length", "model": "deepseek-r1-14b", "reason": "content check", "status": "fail", "task_id": "memory-review-001", "trace_id": "563574bb-f841-4dca-a59b-8b2e30381c8d"}
+{"duration_s": 8.95, "finish_reason": "stop", "model": "deepseek-r1-14b", "reason": "content check", "status": "pass", "task_id": "compact-001", "trace_id": "72fa304f-6922-414e-8eb9-4c9576346290"}

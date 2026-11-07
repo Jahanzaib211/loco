@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loco — Agentic tools</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui/app.css">
+</head><body data-active="tools.html">
+<aside class="side">
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
+</aside>
+<main class="main">
+  <div class="top">
+    <div>
+      <h1>Agentic tools</h1>
+      <div class="sub">call from any model via /v1/tools/* — schemas below, every call logged</div>
+    </div>
+    <div class="row"><span class="pill"><span class="dot live-dot"></span> <span id="liveTxt">live · ws</span></span></div>
+  </div>
+
+  <div class="grid g3">
+    <div class="card">
+      <h3>Summarize <span class="spacer"></span><span class="tag">POST /v1/tools/summarize</span></h3>
+      <textarea id="sumText" rows="6" style="width:100%;">The lab runs a deterministic router. Every request is parsed, classified by task, gated on VRAM, sent to the chosen model, answered, and logged for evals.</textarea>
+      <div class="row" style="margin-top:9px"><button class="primary" id="sumBtn">Summarize</button><span class="muted" style="font-size:11px" id="sumStat"></span></div>
+      <pre id="sumResult" class="log" style="margin-top:9px;min-height:74px">…</pre>
+    </div>
+
+    <div class="card">
+      <h3>Search notes <span class="spacer"></span><span class="tag">POST /v1/tools/search</span></h3>
+      <textarea id="searchQ" rows="3" style="width:100%;">pipeline</textarea>
+      <div class="row" style="margin-top:9px"><button class="primary" id="searchBtn">Search</button><span class="muted" style="font-size:11px" id="searchStat"></span></div>
+      <pre id="searchResult" class="log" style="margin-top:9px;min-height:74px">…</pre>
+    </div>
+
+    <div class="card">
+      <h3>Calculate <span class="spacer"></span><span class="tag">POST /v1/tools/calculate</span></h3>
+      <textarea id="calcExpr" rows="2" style="width:100%;">2 + 3 * 4</textarea>
+      <div class="row" style="margin-top:9px"><button class="primary" id="calcBtn">Calculate</button><span class="muted" style="font-size:11px" id="calcStat"></span></div>
+      <pre id="calcResult" class="log" style="margin-top:9px;min-height:74px">…</pre>
+    </div>
+  </div>
+
+  <div class="sec">tool registry <span class="n">GET /v1/tools · schemas the models see</span></div>
+  <div class="card">
+    <pre id="schemas" class="log" style="max-height:320px">loading schemas…</pre>
+  </div>
+
+  <div class="footer">
+    Tools live in the agent plane — Loco routes, agents execute.
+    Unknown tools refuse with <code>403</code>; every call lands in <code>route_log</code>.
+    Full list: <a href="/ui/api.html">API catalog</a>
+  </div>
+</main>
+<script src="/ui/app.js"></script>
+<script src="/ui/scene.js"></script>
+<script>
+async function run(btn, statEl, outEl, path, body, pick) {
+  btn.disabled = true;
+  const t0 = performance.now();
+  const r = await api(path, { method: "POST", body });
+  const ms = Math.round(performance.now() - t0);
+  btn.disabled = false;
+  if (!r.ok) {
+    statEl.textContent = "error " + r.status;
+    outEl.textContent = "error: " + (r.data?.error?.message || r.data?.error || r.status);
+    return;
+  }
+  statEl.textContent = r.status + " · " + ms + " ms";
+  if (window.__locoToolBump) window.__locoToolBump(path.replace("/v1/tools/", ""));
+  outEl.textContent = pick(r.data);
+}
+
+const g = (id) => document.getElementById(id);
+
+g("sumBtn").addEventListener("click", () =>
+  run(g("sumBtn"), g("sumStat"), g("sumResult"), "/v1/tools/summarize",
+      { text: g("sumText").value },
+      (d) => d.summary || JSON.stringify(d, null, 2)));
+
+g("searchBtn").addEventListener("click", () =>
+  run(g("searchBtn"), g("searchStat"), g("searchResult"), "/v1/tools/search",
+      { query: g("searchQ").value },
+      (d) => (d.results || []).map(r => `[${r.id}] ${r.content}`).join("\n") || "none"));
+
+g("calcBtn").addEventListener("click", () =>
+  run(g("calcBtn"), g("calcStat"), g("calcResult"), "/v1/tools/calculate",
+      { expr: g("calcExpr").value },
+      (d) => d.result != null ? String(d.result) : JSON.stringify(d, null, 2)));
+
+api("/v1/tools").then(r => {
+  g("schemas").textContent = r.ok ? JSON.stringify(r.data, null, 2) : ("failed: " + r.status);
+});
+</script>
+
+<div class="scene-card card" style="margin-top:14px">
+  <div class="scene-head">
+    <h3>live pipeline · 3D</h3>
+    <span class="badge acc">ws streaming</span>
+    <div class="legend">
+      <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>apps</span>
+      <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>loco</span>
+      <span class="lg"><i style="background:#87c5ff;color:#87c5ff"></i>tools</span>
+      <span class="lg"><i style="background:#61d1b5;color:#61d1b5"></i>memory</span>
+    </div>
+    <span class="spacer"></span>
+    <span class="pill">agent plane</span>
+  </div>
+  <canvas id="toolsScene" style="width:100%;height:240px;display:block"></canvas>
+</div>
+<script>
+/* tools 3D scene: scope = the tool registry — one cube per tool, calls pulse them */
+(function(){
+  window.__locoToolState = { calls: {}, last: null, t: 0 };
+  const TOOLS = [
+    { name: "summarize", col: [167,139,250] },
+    { name: "search",    col: [87,230,255] },
+    { name: "calculate", col: [61,220,151] },
+  ];
+  window.sceneSetCanvas("toolsScene");
+  window.sceneSetActor(function (ctx, now, dt) {
+    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
+    C.clearRect(0, 0, cv ? cv.width : 800, cv ? cv.height : 240);
+    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
+    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
+    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+    const st = window.__locoToolState;
+
+    /* agent plane above, tool cubes below */
+    C.font = "700 9px ui-monospace, Menlo, monospace"; C.textAlign = "left";
+    C.fillStyle = "rgba(138,149,173,.7)";
+    C.fillText("AGENT PLANE · CALLS IN", X(30), Y(-90));
+    C.fillText("TOOL REGISTRY · LOCAL, DETERMINISTIC", X(30), Y(120));
+
+    /* agent node */
+    C.fillStyle = "rgba(110,168,255,.2)"; C.strokeStyle = "rgba(110,168,255,.6)"; C.lineWidth = 1;
+    C.beginPath(); C.arc(X(90), Y(-60), 20, 0, Math.PI * 2); C.fill(); C.stroke();
+    C.font = "700 9px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(169,198,255,.95)";
+    C.textAlign = "center"; C.fillText("AGENT", X(90), Y(-22)); C.textAlign = "left";
+
+    /* one cube per tool */
+    TOOLS.forEach((t, i) => {
+      const tx = 300 + i * 180, ty = 40;
+      const hot = st.last === t.name;
+      const bump = hot ? 1.18 : 1;
+      const s = 42 * bump;
+      C.fillStyle = hot ? "rgba(" + t.col.join(",") + ",.55)" : "rgba(" + t.col.join(",") + ",.16)";
+      C.strokeStyle = "rgba(" + t.col.join(",") + ",.75)"; C.lineWidth = 1.4;
+      C.beginPath(); C.rect(X(tx - s / 2), Y(ty - s / 2), s, s); C.fill(); C.stroke();
+      C.font = "700 10px ui-monospace, Menlo, monospace";
+      C.fillStyle = "rgba(" + t.col.join(",") + ",.95)"; C.textAlign = "center";
+      C.fillText(t.name.toUpperCase(), X(tx), Y(ty + s / 2 + 16));
+      /* call count */
+      C.fillStyle = "rgba(138,149,173,.8)"; C.font = "700 9px ui-monospace, Menlo, monospace";
+      C.fillText((st.calls[t.name] || 0) + " calls", X(tx), Y(ty + s / 2 + 30));
+      /* wire from agent */
+      C.strokeStyle = "rgba(110,168,255,.18)"; C.lineWidth = 1.5;
+      C.beginPath(); C.moveTo(X(110), Y(-46)); C.lineTo(X(tx), Y(ty - s / 2)); C.stroke();
+    });
+    C.textAlign = "left";
+  });
+
+  function bump(tool) {
+    const st = window.__locoToolState;
+    st.last = tool;
+    st.calls[tool] = (st.calls[tool] || 0) + 1;
+  }
+  window.__locoToolBump = bump;
+  /* every tool call is logged to route_log → the ws feed carries it */
+  onWs(function (msg) {
+    if (msg.type === "route" && msg.action && String(msg.action).startsWith("tool")) {
+      const tool = String(msg.action).replace(/^tool-?/, "");
+      if (window.__locoToolState) window.__locoToolState.last = tool;
+    }
+  });
+})();
+</script>
+</body>
+</html>

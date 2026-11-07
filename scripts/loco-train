@@ -1,0 +1,195 @@
+#!/usr/bin/env python3
+"""Measured fine-tune flywheel: curate -> dataset -> train -> evaluate -> promote.
+
+Stages communicate through files, so each one can be re-run and inspected on
+its own:
+
+    loco-train curate      SQLite traces  -> data/curated.jsonl (+ stats)
+    loco-train dataset     curated       -> data/train.jsonl + data/eval.jsonl
+    loco-train train       split         -> adapters/adapter-*/ (needs GPU deps)
+    loco-train evaluate    results JSONL -> verdict JSON (gate vs baseline)
+    loco-train promote     verdict       -> train/registry.json (pass only)
+    loco-train status      the registry
+
+This script never downloads packages or weights, and it never opens a network
+connection except `evaluate`, which reads local eval result files.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from train import curate as curate_mod          # noqa: E402
+from train import dataset as dataset_mod        # noqa: E402
+from train import evaluate as evaluate_mod      # noqa: E402
+from train import promote as promote_mod        # noqa: E402
+from train import train as train_mod            # noqa: E402
+
+DEFAULT_CURATED = ROOT / "data/curated.jsonl"
+DEFAULT_DATA_DIR = ROOT / "data"
+
+
+def cmd_curate(args) -> int:
+    examples, stats = curate_mod.curate(
+        limit_traces=args.limit, feedback_only=args.feedback_only)
+    destination = Path(args.out)
+
+    # Accumulate by default: a daily run must grow the dataset, not shrink it
+    # to whatever the newest trace window contains.
+    carried = []
+    if not args.fresh and destination.exists():
+        seen = {example.get("_sha") for example in examples}
+        for line in destination.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                existing = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if existing.get("_sha") not in seen:
+                seen.add(existing.get("_sha"))
+                carried.append(existing)
+    stats["carried_over"] = len(carried)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("w", encoding="utf-8") as handle:
+        for example in carried + examples:
+            handle.write(json.dumps(example, ensure_ascii=False,
+                                    sort_keys=True) + "\n")
+    stats["curated_total"] = len(carried) + len(examples)
+    print(json.dumps({"out": str(destination), **stats}, indent=2, sort_keys=True))
+    if not stats["curated_total"]:
+        print("no examples survived the gates — run the pipeline and leave "
+              "feedback traces first", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_dataset(args) -> int:
+    source = Path(args.curated)
+    if not source.exists():
+        print(f"missing {source} — run `loco-train curate` first", file=sys.stderr)
+        return 2
+    examples = [json.loads(line) for line in source.read_text().splitlines()
+                if line.strip()]
+    manifest = dataset_mod.build(examples, args.out_dir, args.eval_percent)
+    print(json.dumps(manifest, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_train(args) -> int:
+    argv = ["--base", args.base, "--data", args.data, "--out", args.out,
+            "--epochs", str(args.epochs), "--lr", str(args.lr),
+            "--max-seq-len", str(args.max_seq_len)]
+    return train_mod.main(argv)
+
+
+def cmd_evaluate(args) -> int:
+    verdict = evaluate_mod.evaluate(
+        args.candidate, args.baseline, args.min_rate,
+        args.max_drop_points, args.out)
+    print(json.dumps(verdict, indent=2, sort_keys=True))
+    return 0 if verdict["gate"]["passed"] else 1
+
+
+def cmd_register(args) -> int:
+    entry = promote_mod.register(args.id, args.kind, args.artifact,
+                                 args.dataset_hash, args.base, args.notes)
+    print(json.dumps(entry, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_promote(args) -> int:
+    entry = promote_mod.promote(args.id, args.verdict, args.by)
+    print(json.dumps(entry, indent=2, sort_keys=True))
+    print("recorded. Serving change is still manual:")
+    print("  1. convert/export the adapter to a loadable artifact")
+    print("  2. place it where the router discovers models")
+    print("  3. re-run `test_all.py` before trusting the new lane")
+    return 0
+
+
+def cmd_reject(args) -> int:
+    entry = promote_mod.reject(args.id, args.reason, args.by)
+    print(json.dumps(entry, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_registry_status(_args) -> int:
+    return promote_mod.main(["status"])
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("curate", help="gate traces into training examples")
+    p.add_argument("--limit", type=int, default=500)
+    p.add_argument("--feedback-only", action="store_true",
+                   help="keep only positively marked traces")
+    p.add_argument("--fresh", action="store_true",
+                   help="replace the curated file instead of merging into it")
+    p.add_argument("--out", default=str(DEFAULT_CURATED))
+    p.set_defaults(func=cmd_curate)
+
+    p = sub.add_parser("dataset", help="deterministic train/eval split")
+    p.add_argument("--curated", default=str(DEFAULT_CURATED))
+    p.add_argument("--out-dir", default=str(DEFAULT_DATA_DIR))
+    p.add_argument("--eval-percent", type=int, default=10)
+    p.set_defaults(func=cmd_dataset)
+
+    p = sub.add_parser("train", help="QLoRA run (requires local GPU deps)")
+    p.add_argument("--base", required=True, help="local HF-format base model")
+    p.add_argument("--data", default=str(DEFAULT_DATA_DIR / "train.jsonl"))
+    p.add_argument("--out", default=str(ROOT / "adapters"))
+    p.add_argument("--epochs", type=float, default=2.0)
+    p.add_argument("--lr", type=float, default=2e-4)
+    p.add_argument("--max-seq-len", type=int, default=2048)
+    p.set_defaults(func=cmd_train)
+
+    p = sub.add_parser("evaluate", help="gate an eval run against a baseline")
+    p.add_argument("--candidate", required=True)
+    p.add_argument("--baseline")
+    p.add_argument("--min-rate", type=float, default=0.50)
+    p.add_argument("--max-drop-points", type=float, default=5.0)
+    p.add_argument("--out")
+    p.set_defaults(func=cmd_evaluate)
+
+    p = sub.add_parser("promote", help="registry operations (pass-gated)")
+    r = p.add_subparsers(dest="registry_cmd", required=True)
+
+    q = r.add_parser("register", help="record a new candidate artifact")
+    q.add_argument("id")
+    q.add_argument("--kind", default="adapter")
+    q.add_argument("--artifact", required=True)
+    q.add_argument("--dataset-hash")
+    q.add_argument("--base")
+    q.add_argument("--notes")
+    q.set_defaults(func=cmd_register)
+
+    q = r.add_parser("promote", help="promote after a passing eval verdict")
+    q.add_argument("id")
+    q.add_argument("--verdict", required=True)
+    q.add_argument("--by", default="operator")
+    q.set_defaults(func=cmd_promote)
+
+    q = r.add_parser("reject", help="record a rejected candidate")
+    q.add_argument("id")
+    q.add_argument("--reason", required=True)
+    q.add_argument("--by", default="operator")
+    q.set_defaults(func=cmd_reject)
+
+    p = sub.add_parser("status", help="show the promotion registry")
+    p.set_defaults(func=cmd_registry_status)
+    return parser
+
+
+if __name__ == "__main__":
+    _args = build_parser().parse_args()
+    raise SystemExit(_args.func(_args))

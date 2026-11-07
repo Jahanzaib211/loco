@@ -1,0 +1,8 @@
+{"duration_s": 5.38, "finish_reason": "stop", "model": "Underdog-Saluki-27B-1.0-IQ2-mix", "reason": "content check", "status": "pass", "task_id": "route-001", "trace_id": "7164f613-5b22-4813-adc8-c3446d9da780"}
+{"duration_s": 6.94, "finish_reason": "stop", "model": "Underdog-Saluki-27B-1.0-IQ2-mix", "reason": "content check", "status": "pass", "task_id": "route-002", "trace_id": "61f5c8ae-15d8-47f4-9185-00bc29b3b466"}
+{"duration_s": 15.63, "finish_reason": "stop", "model": "Underdog-Saluki-27B-1.0-IQ2-mix", "reason": "content check", "status": "pass", "task_id": "plan-001", "trace_id": "0e07a8f3-14cf-4ea6-86fe-585c6b5d3522"}
+{"duration_s": 2.9, "finish_reason": "stop", "model": "Underdog-Saluki-27B-1.0-IQ2-mix", "reason": "content check", "status": "pass", "task_id": "verify-001", "trace_id": "0b8b07ac-2696-4ffa-8b65-0f608bcf1b93"}
+{"duration_s": 47.21, "finish_reason": "length", "model": "Underdog-Saluki-27B-1.0-IQ2-mix", "reason": "content check", "status": "fail", "task_id": "refuse-001", "trace_id": "64477c3b-c691-4722-9eda-630b53879f78"}
+{"duration_s": 5.89, "finish_reason": "stop", "model": "Underdog-Saluki-27B-1.0-IQ2-mix", "reason": "content check", "status": "pass", "task_id": "extract-001", "trace_id": "350e0f64-f6be-4cb6-9d01-5fd62bd064ec"}
+{"duration_s": 13.59, "finish_reason": "stop", "model": "Underdog-Saluki-27B-1.0-IQ2-mix", "reason": "content check", "status": "pass", "task_id": "memory-review-001", "trace_id": "577b5f25-019d-4c51-91d4-2d197bf5123d"}
+{"duration_s": 6.12, "finish_reason": "stop", "model": "Underdog-Saluki-27B-1.0-IQ2-mix", "reason": "content check", "status": "pass", "task_id": "compact-001", "trace_id": "1498304f-dd3e-428b-ba1f-8f5d09081dfe"}

@@ -1,0 +1,62 @@
+[Unit]
+Description=Loco local inference router and data plane
+Documentation=file:/home/jahanzaib/Desktop/Loco/docs/AGENTIC_API.md
+After=network-online.target nvidia-persistenced.service llama-server.service ollama.service
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=3
+
+[Service]
+Type=simple
+# Run as the lab user, not root: memory/results/logs must stay user-owned so
+# the offline scripts (loco-train, flywheel) can write them without sudo.
+User=jahanzaib
+Group=jahanzaib
+WorkingDirectory=/home/jahanzaib/Desktop/Loco
+Environment=PYTHONUNBUFFERED=1 LOCO_TRACE_DEFAULT=full
+ExecStart=/usr/bin/python3 -m loco
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+
+# Loco is a control plane: routing, admission, traces, memory. It is
+# localhost-only by application design and must measure the GPU, so it needs
+# the NVIDIA character devices and nothing else device-wise.
+#
+# Verified on this rig: PrivateDevices=true makes nvidia-smi exit 218
+# (CAPABILITIES), which fails every admission closed. The closed device
+# policy with an explicit NVIDIA allow-list keeps both the sandbox and the
+# capacity gate working (tested via systemd-run with these directives).
+DevicePolicy=closed
+DeviceAllow=char-195 rw
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/jahanzaib/Desktop/Loco/memory /home/jahanzaib/Desktop/Loco/results /home/jahanzaib/Desktop/Loco/logs /home/jahanzaib/models
+ProtectHome=read-only
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+UMask=0077
+
+# Kernel, clock, hostname, namespaces and realtime are never needed by the
+# service or by nvidia-smi.
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectClock=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+
+# Scheduling: the router yields to the inference processes. Memory is capped
+# well above steady state so a leak restarts the service instead of eating
+# the box (Restart=on-failure recovers it).
+Nice=5
+MemoryHigh=1G
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target

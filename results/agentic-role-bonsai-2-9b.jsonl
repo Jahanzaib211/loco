@@ -1,0 +1,8 @@
+{"duration_s": 8.58, "finish_reason": "length", "model": "bonsai-2-9b", "reason": "content check", "status": "fail", "task_id": "route-001", "trace_id": "4ef35d77-76f3-4e57-9582-784e6f578db2"}
+{"duration_s": 6.37, "finish_reason": "length", "model": "bonsai-2-9b", "reason": "content check", "status": "fail", "task_id": "route-002", "trace_id": "aec31f06-7d85-4299-bf6a-fdf437bddf56"}
+{"duration_s": 6.23, "finish_reason": "length", "model": "bonsai-2-9b", "reason": "content check", "status": "fail", "task_id": "plan-001", "trace_id": "8d04b261-aecc-4a39-9e39-10fc871c2f1e"}
+{"duration_s": 6.17, "finish_reason": "length", "model": "bonsai-2-9b", "reason": "content check", "status": "fail", "task_id": "verify-001", "trace_id": "1fb2d763-f8e5-4a51-a25c-419cbe5c1e3a"}
+{"duration_s": 6.32, "finish_reason": "stop", "model": "bonsai-2-9b", "reason": "content check", "status": "fail", "task_id": "refuse-001", "trace_id": "02239584-27a9-454a-bdef-18a6801d4cbc"}
+{"duration_s": 6.14, "finish_reason": "length", "model": "bonsai-2-9b", "reason": "content check", "status": "fail", "task_id": "extract-001", "trace_id": "849c5eea-af41-4646-9299-c2e0d5c0d40d"}
+{"duration_s": 6.16, "finish_reason": "length", "model": "bonsai-2-9b", "reason": "content check", "status": "fail", "task_id": "memory-review-001", "trace_id": "023d71f6-1d51-480c-9eb2-193dd657cc69"}
+{"duration_s": 6.14, "finish_reason": "length", "model": "bonsai-2-9b", "reason": "content check", "status": "fail", "task_id": "compact-001", "trace_id": "3a5908e0-23ef-49d0-85c7-a3a30440dabe"}

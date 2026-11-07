@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loco — Pipeline &amp; doctrine</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui/app.css">
+</head><body data-active="pipeline.html">
+<aside class="side">
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
+</aside>
+<main class="main">
+  <div class="top">
+    <div><h1>Pipeline &amp; doctrine</h1><div class="sub">why it's built this way — every claim measured on this rig</div></div>
+    <span class="pill"><span class="dot live-dot"></span> <span id="liveTxt">live · ws</span></span>
+  </div>
+
+  <div class="card">
+    <h3>The one law</h3>
+    <p style="font-size:16px"><b>Apps talk to Loco; Loco talks to models; nothing else exists.</b> No app configures or fights an inference server — ever. Tools &amp; MCP live in a <em>separate plane</em> on top of external agents, never inside the model router.</p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>Pipeline — request lifecycle</h3>
+    <div class="flow">
+      <div class="step"><b>1·apps</b><small>standard chat POST<br>any client</small></div><div class="arrow">→</div>
+      <div class="step"><b>2·parse</b><small>validate · model resolve<br><code>loco:auto</code> → classifier</small></div><div class="arrow">→</div>
+      <div class="step"><b>3·classify</b><small>regex table, ordered<br>tags: vision/code/math/…</small></div><div class="arrow">→</div>
+      <div class="step"><b>4·VRAM gate</b><small>GPU query · evict local GGUF stack<br>then managed backend · else 503</small></div><div class="arrow">→</div>
+      <div class="step"><b>5·backend</b><small>managed backend :11434 / local GGUF stack :8080<br>embed :8210</small></div><div class="arrow">→</div>
+      <div class="step"><b>6·respond</b><small>SSE stream or buffer</small></div><div class="arrow">→</div>
+      <div class="step"><b>7·memory</b><small>async log + embed<br>route_log is the eval fuel</small></div>
+    </div>
+  </div>
+
+  <div class="scene-card card" style="margin-top:14px;margin-bottom:14px">
+    <div class="scene-head">
+      <h3>live pipeline · 3D</h3>
+      <span class="badge acc">ws streaming</span>
+      <div class="legend">
+        <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>apps</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>loco</span>
+        <span class="lg"><i style="background:#87c5ff;color:#87c5ff"></i>VRAM gate</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>backend</span>
+        <span class="lg"><i style="background:#61d1b5;color:#61d1b5"></i>memory</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="pill">real-time flow</span>
+    </div>
+    <div class="scene-stage" style="position:relative">
+      <canvas id="pipelineScene" style="width:100%;height:320px;display:block"></canvas>
+      <div class="hud" style="position:absolute;top:10px;left:10px;pointer-events:none;font:10px ui-monospace;color:var(--dim)">
+        📡 → 🧠 → 💾
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>The 17 problems — honest build status</h3>
+    <table class="table">
+      <thead><tr><th>#</th><th>whitepaper problem</th><th>status on your rig</th></tr></thead>
+      <tbody>
+        <tr><td>1–4</td><td>Paged KV · prefix hash · continuous batching · KV eviction</td><td>slots + unified KV + q8_0 (proven 16k). No fake engine clones.</td></tr>
+        <tr><td>5</td><td>Deterministic routing</td><td><b>built</b> — regex order → tag → model map; explicit model always wins</td></tr>
+        <tr><td>6–7</td><td>Semantic cache · pruning</td><td><b>built</b> — cos≥0.93 short-circuit (temp=0 only); embed+rerank pipeline live</td></tr>
+        <tr><td>8–10</td><td>VRAM budget · telemetry · layer offload</td><td><b>built</b> — eviction gate; GPU query 1s poller; <code>--fit on</code> proven (Axiom 16k loads)</td></tr>
+        <tr><td>11–12</td><td>Speculation · KV quantization</td><td>q8_0 shipped; draft heads skipped — no compatible pair in your models</td></tr>
+        <tr><td>13</td><td>Vision</td><td><b>built</b> — image payloads → gemma (mmproj), 100% GPU</td></tr>
+        <tr><td>14–16</td><td>Async writes · router/scheduler split · graceful degrade</td><td><b>built</b> — fire-and-forget memory; stateless router vs tiny VRAM gate; 503-or-lfm3 fallback</td></tr>
+        <tr><td>17</td><td>Hierarchical memory</td><td>working → episodic (sqlite+cosine) → semantic (nightly consolidation, planned)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>Model roles — why / what / style</h3>
+    <p class="muted" style="font-size:12px">full cards: <a href="/ui/identities/index.md">identity library</a></p>
+    <table class="table">
+      <thead><tr><th>model</th><th>role (why it holds the slot)</th><th>ctx</th><th>t/s</th></tr></thead>
+      <tbody>
+        <tr><td>nemotron-3.5-bolt-e4b · <b>Bolt</b></td><td><b>chain leader</b> — 6/8 role · 6/10 tool; first in every auto chain</td><td>32k</td><td>71</td></tr>
+        <tr><td>ornith-1.5-9b · <b>Orbit</b></td><td>second lane · compaction first — 5/8 · 6/10</td><td>65k</td><td>54</td></tr>
+        <tr><td>lfm3-1.7b · <b>Sparrow</b></td><td>fast third fallback — 3/8 · 5/10, fastest tokens (155 t/s)</td><td>131k</td><td>155</td></tr>
+        <tr><td>Underdog-Saluki-27B-1.0-IQ2-mix · <b>Candidate</b></td><td><b>best role score</b> — 7/8 · 6/10 tie; slowest (23 t/s), 8.7 GB → explicit only</td><td>16k</td><td>23</td></tr>
+        <tr><td>phi4-mini-3.8b · <b>Scout</b></td><td>role specialist — 6/8 · 1/10 tool; explicit only</td><td>65k*</td><td>94</td></tr>
+        <tr><td>huihui_ai/gemma-4-abliterated:e4b · <b>Flagship</b></td><td>vision lane — 4/8 · 6/10; managed backend, explicit only</td><td>131k</td><td>77</td></tr>
+        <tr><td>deepseek-r1-14b · <b>Axiom</b></td><td>heavy reasoner — 1/8 · 1/10 at default budget; <b>max_tokens≥1000</b>; explicit only</td><td>16k</td><td>33</td></tr>
+        <tr><td>bonsai-2-9b · <b>Bonsai</b></td><td>weakest measured — 0/8 · 4/10; explicit only</td><td>65k</td><td>92</td></tr>
+        <tr><td>bge-small-en-v1.5 · <b>Index</b></td><td>embeddings 384d — the lab's semantic key</td><td>512</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <p class="muted" style="font-size:11px">scores = role suite (8 tasks) · tool suite (10 tasks), results/ on this rig. *phi4-mini 65536 requires q8_0 KV; Axiom 16k q8_0 verified; 32k impossible on 12 GB.</p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>Tools &amp; MCP — separate plane, on purpose</h3>
+    <pre style="font-size:12px">┌─ model plane (Loco :8200) ─────────────────────────────┐
+│  routes only · never executes tools · never touches net │
+│  local GGUF stack / managed backend pass `tools` through untouched      │
+└───────────────┬────────────────────────────────────────┘
+                ▼
+┌─ agent plane (your agents) ─────────────────────────────┐
+│  tools · MCP servers · skills · planning loop          │
+│  tool_choice enforcement lives HERE, not in the router │
+└────────────────────────────────────────────────────────┘</pre>
+    <p class="muted" style="font-size:12px">this is the whole point of “support agentic workflows”: Loco guarantees any agent <em>any</em> brain, deterministically, without bargaining with an inference stack. Agents wire MCP on top; Loco stays a clean, dumb, fast traffic cop.</p>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>Eval loop — how the router gets smarter</h3>
+    <ol style="margin-left:18px;font-size:13px">
+      <li>every route → <code>route_log</code> (task, model, backend, tokens, latency, cache_hit, gpu_mib_before)</li>
+      <li>shadow eval reads it → p50/p95 latency, cache-hit rate, degradation rate, per-task success proxy</li>
+      <li>weights in <code>loco/routing.py</code> (TASK_MODEL, cache gate) tuned from data — never vibes</li>
+      <li>monthly: nightly consolidation writes an <b>episodic→semantic</b> distillation; promotion only via eval delta</li>
+    </ol>
+  </div>
+  <div class="footer">Loco doctrine · this rig, this data · if a claim isn't in <code>/home/jahanzaib/Desktop/Loco/results/</code> it didn't happen.</div>
+</main>
+<script src="/ui/app.js"></script>
+<script src="/ui/scene.js"></script>
+<script>
+/* pipeline 3D scene: scope = the doctrine lifecycle, staged in depth */
+(function(){
+  const STAGES = [
+    { n: "1", label: "apps",      col: [110,168,255], d: 0 },
+    { n: "2", label: "parse",     col: [87,230,255],  d: 1 },
+    { n: "3", label: "classify",  col: [135,197,255], d: 2 },
+    { n: "4", label: "vram gate", col: [246,193,117], d: 3 },
+    { n: "5", label: "backend",   col: [61,220,151],  d: 4 },
+    { n: "6", label: "respond",   col: [87,230,255],  d: 5 },
+    { n: "7", label: "memory",    col: [167,139,250], d: 6 },
+  ];
+  window.sceneSetCanvas("pipelineScene");
+  window.sceneSetActor(function (ctx, now, dt) {
+    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
+    C.clearRect(0, 0, cv ? cv.width : 900, cv ? cv.height : 320);
+    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
+    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
+    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+
+    /* the seven stages, laid out as a diagonal runway into depth */
+    STAGES.forEach((s, i) => {
+      const bx = 40 + i * 118, by = 60 + i * 14;
+      const hot = (Math.floor(now / 900) % 7) === i;
+      const h = 34 + s.d * 7;
+      C.fillStyle = hot ? "rgba(" + s.col.join(",") + ",.55)" : "rgba(" + s.col.join(",") + ",.16)";
+      C.strokeStyle = "rgba(" + s.col.join(",") + "," + (hot ? ".9" : ".5") + ")";
+      C.lineWidth = hot ? 1.8 : 1;
+      C.beginPath(); C.rect(X(bx), Y(by - h), 78, h); C.fill(); C.stroke();
+      /* stage number badge */
+      C.beginPath(); C.arc(X(bx + 12), Y(by - h - 12), 9, 0, Math.PI * 2);
+      C.fillStyle = "rgba(" + s.col.join(",") + ",.85)"; C.fill();
+      C.font = "700 9px ui-monospace, Menlo, monospace"; C.fillStyle = "#08101c";
+      C.textAlign = "center"; C.fillText(s.n, X(bx + 12), Y(by - h - 9));
+      /* label */
+      C.font = "700 10px ui-monospace, Menlo, monospace";
+      C.fillStyle = "rgba(" + s.col.join(",") + ",.95)";
+      C.fillText(s.label.toUpperCase(), X(bx + 39), Y(by + 14));
+      /* connector */
+      if (i < STAGES.length - 1) {
+        C.strokeStyle = "rgba(110,168,255,.22)"; C.lineWidth = 1.6;
+        C.beginPath(); C.moveTo(X(bx + 78), Y(by - h + 8)); C.lineTo(X(bx + 118), Y(by + 14 - (34 + (s.d + 1) * 7) + 8)); C.stroke();
+      }
+    });
+    C.textAlign = "left";
+    C.font = "700 10px ui-monospace, Menlo, monospace";
+    C.fillStyle = "rgba(138,149,173,.85)";
+    C.fillText("REQUEST LIFECYCLE · 7 STAGES · ONE LANE", X(40), Y(-70));
+    C.fillStyle = "rgba(138,149,173,.55)"; C.font = "700 9px ui-monospace, Menlo, monospace";
+    C.fillText("stage highlight sweeps the path · every stage is local", X(40), Y(-52));
+  });
+})();
+</script>
+</body>
+</html>

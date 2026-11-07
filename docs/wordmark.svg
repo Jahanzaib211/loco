@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 128" width="460" height="128" role="img" aria-label="Loco — local inference lab">
+  <title>Loco — local inference lab</title>
+  <defs>
+    <linearGradient id="wHex" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#57e6ff"/>
+      <stop offset="55%" stop-color="#6ea8ff"/>
+      <stop offset="100%" stop-color="#3b62c4"/>
+    </linearGradient>
+    <linearGradient id="wCore" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8ff0ff"/>
+      <stop offset="100%" stop-color="#3f7bff"/>
+    </linearGradient>
+    <linearGradient id="wText" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#a9c6ff"/>
+    </linearGradient>
+    <filter id="wGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <g transform="translate(64,64) scale(0.92) translate(-64,-64)">
+    <path d="M64 8 L114 36 V92 L64 120 L14 92 V36 Z"
+          fill="none" stroke="url(#wHex)" stroke-width="3.2" stroke-linejoin="round"/>
+    <circle cx="64" cy="64" r="21" fill="none" stroke="url(#wCore)" stroke-width="3" opacity="0.95"/>
+    <circle cx="84" cy="64" r="8.5" fill="#3ddc97" opacity="0.92" filter="url(#wGlow)"/>
+    <path d="M46 64 H76" stroke="#8ab4f8" stroke-width="2.6" stroke-linecap="round" opacity="0.75"/>
+    <circle cx="46" cy="64" r="4" fill="#57e6ff" opacity="0.9"/>
+  </g>
+
+  <g font-family="ui-sans-serif,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+    <text x="132" y="60" font-size="46" font-weight="700" letter-spacing="-0.5" fill="url(#wText)">Loco</text>
+    <text x="134" y="84" font-size="15" font-weight="600" letter-spacing="3.6" fill="#8a95ad">LOCAL INFERENCE LAB</text>
+    <text x="134" y="106" font-size="12.5" font-weight="500" letter-spacing="0.2" fill="#5f6a82">one endpoint · deterministic routes · local memory</text>
+  </g>
+</svg>

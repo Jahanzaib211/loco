@@ -1,0 +1,8 @@
+{"duration_s": 31.63, "finish_reason": "stop", "model": "nemotron-3.5-bolt-e4b", "reason": "content check", "status": "pass", "task_id": "route-001", "trace_id": "8ab672f8-4f7d-4cf1-94c6-5e5b2dd028ca"}
+{"duration_s": 1.52, "finish_reason": "stop", "model": "nemotron-3.5-bolt-e4b", "reason": "content check", "status": "pass", "task_id": "route-002", "trace_id": "6dd6bbdf-250b-46be-880f-dd8bfc1d7d26"}
+{"duration_s": 3.33, "finish_reason": "stop", "model": "nemotron-3.5-bolt-e4b", "reason": "content check", "status": "pass", "task_id": "plan-001", "trace_id": "fac24219-fe50-460f-9c1d-9f27577cea49"}
+{"duration_s": 1.61, "finish_reason": "stop", "model": "nemotron-3.5-bolt-e4b", "reason": "content check", "status": "pass", "task_id": "verify-001", "trace_id": "8a581c0e-419d-416e-b0d3-53825d20497b"}
+{"duration_s": 3.8, "finish_reason": "length", "model": "nemotron-3.5-bolt-e4b", "reason": "content check", "status": "fail", "task_id": "refuse-001", "trace_id": "5fc93833-34b3-4ce5-8470-1571875294da"}
+{"duration_s": 2.81, "finish_reason": "stop", "model": "nemotron-3.5-bolt-e4b", "reason": "content check", "status": "pass", "task_id": "extract-001", "trace_id": "8cbff197-f3d4-4b29-af61-b2ff498896ad"}
+{"duration_s": 3.82, "finish_reason": "length", "model": "nemotron-3.5-bolt-e4b", "reason": "content check", "status": "fail", "task_id": "memory-review-001", "trace_id": "23cd37de-5445-4485-8650-0a453a465a95"}
+{"duration_s": 2.62, "finish_reason": "stop", "model": "nemotron-3.5-bolt-e4b", "reason": "content check", "status": "pass", "task_id": "compact-001", "trace_id": "f659e670-9db7-4f62-a986-a8fe23443fb5"}

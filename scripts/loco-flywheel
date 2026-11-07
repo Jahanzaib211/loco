@@ -1,0 +1,23 @@
+#!/bin/sh
+# Daily flywheel maintenance: gate new traces into the curated set, rebuild
+# the deterministic train/eval split, refresh the route report.
+#
+# Runs under deploy/loco-flywheel.timer or by hand. Local only: no network,
+# no package installs. Curate is allowed to return non-zero on an empty
+# trace window (nothing new is not an error), but dataset/report failures
+# fail the run so the timer records them.
+set -eu
+cd "$(dirname "$0")/.."
+
+STAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+echo "[$STAMP] flywheel: curate"
+./scripts/loco-train curate --limit 1000 \
+  || echo "[$STAMP] flywheel: curate had no new examples (not fatal)"
+
+echo "[$STAMP] flywheel: dataset"
+./scripts/loco-train dataset
+
+echo "[$STAMP] flywheel: report"
+./scripts/loco-eval report
+
+echo "[$STAMP] flywheel: done"

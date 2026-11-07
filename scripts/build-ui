@@ -1,0 +1,356 @@
+#!/usr/bin/env -S node --no-warnings
+/* ============================================================================
+   scripts/build-ui — zero-dependency UI build for Loco.
+     1. compiles ui/ts/*.ts → ui/*.js (classic scripts) using Node's built-in
+        type stripper (no npm, no bundler, no tsc)
+     2. generates ui/endpoints.json by parsing the real route dispatch in
+        loco/server.py — the API catalog can never drift from the server
+     3. syntax-checks every emitted script (vm.Script) so a broken build
+        fails here, not in the browser
+   Run: node scripts/build-ui   (or: ./scripts/build-ui)
+   ========================================================================== */
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+const { stripTypeScriptTypes } = require("node:module");
+
+// Node prints an ExperimentalWarning for stripTypeScriptTypes; harmless here.
+process.removeAllListeners("warning");
+
+const ROOT = path.resolve(__dirname, "..");
+const TS_DIR = path.join(ROOT, "ui", "ts");
+const UI_DIR = path.join(ROOT, "ui");
+const SERVER = path.join(ROOT, "loco", "server.py");
+
+/* -------------------------------------------------------------- 1) TS --- */
+function compileTs() {
+  if (!fs.existsSync(TS_DIR)) throw new Error("ui/ts/ not found");
+  const files = fs.readdirSync(TS_DIR).filter((f) => f.endsWith(".ts")).sort();
+  if (!files.length) throw new Error("ui/ts/ is empty — nothing to build");
+  const out = [];
+  for (const f of files) {
+    const src = fs.readFileSync(path.join(TS_DIR, f), "utf8");
+    let js;
+    try {
+      js = stripTypeScriptTypes(src, { mode: "strip", sourceUrl: f });
+    } catch (e) {
+      throw new Error(`strip failed for ui/ts/${f}: ${e.message}`);
+    }
+    const dest = path.join(UI_DIR, f.replace(/\.ts$/, ".js"));
+    fs.writeFileSync(dest, js);
+    try {
+      new vm.Script(js, { filename: dest });   // parse-only syntax check
+    } catch (e) {
+      throw new Error(`syntax error in ${dest}: ${e.message}`);
+    }
+    out.push(`${f} → ${path.basename(dest)} (${js.length} B)`);
+  }
+  return out;
+}
+
+/* --------------------------------------------------- 2) route catalog --- */
+/** Slice one method body out of server.py (class-level `def` at 4 spaces). */
+function methodBody(src, name) {
+  const i = src.indexOf(`    def ${name}(`);
+  if (i < 0) throw new Error(`cannot find def ${name}() in loco/server.py`);
+  const j = src.indexOf("\n    def ", i + 1);
+  return src.slice(i, j < 0 ? src.length : j);
+}
+
+function collect(src, re, body, method, into) {
+  let m;
+  while ((m = re.exec(body)) !== null) {
+    const p = m[1];
+    if (p.includes("f\"") || p.includes("${")) continue;   // dynamic paths
+    into.set(`${method} ${p}`, { method, path: p });
+  }
+}
+
+function parseRoutes() {
+  const src = fs.readFileSync(SERVER, "utf8");
+  const routes = new Map();
+
+  const get = methodBody(src, "do_GET");
+  collect(get, /self\.path == "([^"]+)"/g, get, "GET", routes);
+  collect(get, /self\.path\.startswith\("([^"]+)"\)/g, get, "GET", routes);
+  // clause form: `self.path in ("/", "/ui", "/ui/")` — expand every quoted path
+  {
+    const re = /self\.path in \(([^)]*)\)/g;
+    let m;
+    while ((m = re.exec(get)) !== null) {
+      for (const q of m[1].matchAll(/"([^"]+)"/g)) {
+        routes.set(`GET ${q[1]}`, { method: "GET", path: q[1] });
+      }
+    }
+  }
+
+  const post = methodBody(src, "do_POST");
+  collect(post, /(?<![.\w])path == "([^"]+)"/g, post, "POST", routes);
+  collect(post, /(?<![.\w])path\.startswith\("([^"]+)"\)/g, post, "POST", routes);
+
+  /* static-asset serving collapses into one honest entry */
+  for (const key of [...routes.keys()]) {
+    if (key.startsWith("GET /ui")) {
+      routes.delete(key);
+      routes.set("GET /ui/*", { method: "GET", path: "/ui/*" });
+    }
+  }
+  return [...routes.values()];
+}
+
+/* Documentation + safe try-it examples. Key = "METHOD /path".
+   Every route parsed from server.py MUST appear here — the build fails
+   otherwise, which is what keeps the catalog honest. */
+const META = {
+  "GET /": { group: "live", desc: "lab overview page (the live 3D scene)", display: "/" },
+  "GET /ui/*": { group: "live", desc: "static lab UI: pages, styles, scripts, endpoint catalog, identity docs" },
+  "GET /ws": { group: "live", desc: "websocket feed — gpu snapshot (1s) + route/memory/control events", kind: "ws" },
+
+  "GET /health": { group: "ops", desc: "liveness, uptime, gpu snapshot, component states (vector index, backends)" },
+  "GET /metrics": { group: "ops", desc: "counters + gauges: routes, cache hits, evictions, memory notes, ws clients" },
+  "GET /v1/models": { group: "ops", desc: "every brain this endpoint will serve (ids, aliases, context sizes)" },
+
+  "POST /v1/chat/completions": {
+    group: "chat",
+    desc: "the one chat entry point — model id or loco:auto, optional tools, SSE stream",
+    exampleBody: {
+      model: "loco:auto",
+      messages: [
+        { role: "system", content: "You are Loco, a precise local lab assistant." },
+        { role: "user", content: "Reply with exactly: loco ok" },
+      ],
+      temperature: 0, max_tokens: 64, stream: false,
+    },
+  },
+  "POST /v1/compact": {
+    group: "chat",
+    desc: "long conversation → dense MEMORY BRIEF (keeps system + pinned + last N turns)",
+    exampleBody: {
+      messages: [
+        { role: "system", content: "You are Loco." },
+        { role: "user", content: "hello" },
+        { role: "assistant", content: "hi" },
+        { role: "user", content: "tell me about the lab" },
+        { role: "assistant", content: "the lab runs local models" },
+        { role: "user", content: "and the pipeline?" },
+        { role: "assistant", content: "parse → classify → gate → backend" },
+      ],
+      keep_last: 2,
+    },
+  },
+  "POST /v1/embeddings": {
+    group: "chat",
+    desc: "384-dim vectors — the same math that powers memory search and the semantic cache",
+    exampleBody: { input: "propelled by local GPUs, nothing leaves the lab" },
+  },
+
+  "POST /v1/memory/add": {
+    group: "memory",
+    desc: "write an atomic note directly (importance, pinned flag) — bypasses the approval queue",
+    exampleBody: { content: "console example: direct memory write", importance: 0.3, pinned: false, source: "ui" },
+  },
+  "POST /v1/memory/search": {
+    group: "memory",
+    desc: "hybrid recall: cosine over 384-dim embeddings + FTS5 keyword, fused and scored",
+    exampleBody: { query: "pipeline", k: 5 },
+  },
+  "POST /v1/memory/propose": {
+    group: "memory",
+    desc: "queue a note for human approval — nothing durable is written silently",
+    exampleBody: { content: "console example proposal: reviewed before it becomes memory", source: "ui" },
+  },
+  "GET /v1/memory/proposals": {
+    group: "memory",
+    desc: "list approval queue (status=pending|approved|rejected, limit)",
+    examplePath: "/v1/memory/proposals?status=pending&limit=10",
+  },
+  "POST /v1/memory/proposals": {
+    group: "memory",
+    desc: "alias of POST /v1/memory/propose",
+    exampleBody: { content: "console example proposal via alias", source: "ui" },
+  },
+  "POST /v1/memory/proposals/": {
+    group: "memory",
+    desc: "resolve a queued proposal — approve (writes the note) or reject",
+    display: "/v1/memory/proposals/{id}/approve | reject",
+    examplePath: "/v1/memory/proposals/PASTE_ID/approve",
+    exampleBody: {},
+  },
+  "POST /v1/memory/reinforce": {
+    group: "memory",
+    desc: "boost the scores of notes that proved useful (ids from a search result)",
+    exampleBody: { ids: [] },
+  },
+  "POST /v1/memory/stats": {
+    group: "memory",
+    desc: "notes, pinned, cache rows/hits, pending proposals, index state",
+    exampleBody: {},
+  },
+  "POST /v1/memory/index/rebuild": {
+    group: "memory",
+    desc: "rebuild the ready-cache vector index from stored embeddings",
+    exampleBody: {},
+  },
+
+  "GET /v1/control/status": {
+    group: "control",
+    desc: "resident models per backend, presets active flag, load/unload state",
+  },
+  "GET /v1/control/config": {
+    group: "control",
+    desc: "per-model runtime flags (ctx-size, kv cache type, gpu layers, …) + flag docs",
+  },
+  "POST /v1/control/config": {
+    group: "control",
+    desc: "write per-model flags — applied on next load, never mutates a running process",
+    exampleBody: { model: "lfm3-1.7b", flags: {} },
+  },
+  "GET /v1/control/prompts": {
+    group: "control",
+    desc: "every stored per-model system prompt (contents omitted)",
+  },
+  "GET /v1/control/prompt": {
+    group: "control",
+    desc: "read one model's stored system prompt",
+    examplePath: "/v1/control/prompt?model=lfm3-1.7b",
+  },
+  "POST /v1/control/prompt": {
+    group: "control",
+    desc: "store a model's system prompt (injected when a request carries none) — read it first with GET",
+    exampleBody: null,
+  },
+  "POST /v1/control/load": {
+    group: "control",
+    desc: "load a brain — secures VRAM headroom first, evicting idle siblings; 503 if still short",
+    exampleBody: { model: "lfm3-1.7b" },
+  },
+  "POST /v1/control/unload": {
+    group: "control",
+    desc: "unload a brain (idempotent — unloading a resident-free model still returns ok)",
+    exampleBody: { model: "lfm3-1.7b" },
+  },
+
+  "GET /v1/tools": {
+    group: "tools",
+    desc: "registered tools with full JSON schemas (alias: /v1/tools/schemas)",
+  },
+  "GET /v1/tools/schemas": { group: "tools", desc: "alias of GET /v1/tools" },
+  "POST /v1/tools/call": {
+    group: "tools",
+    desc: "invoke a registered tool by name — unknown tools refuse with 403",
+    exampleBody: { tool: "calculate", params: { expr: "6 * 7" } },
+  },
+  "POST /v1/tools/summarize": {
+    group: "tools",
+    desc: "extractive summary of pasted text (local, no network)",
+    exampleBody: { text: "The lab runs a deterministic router. Every request is parsed, classified by task, gated on VRAM, sent to the chosen model, answered, and logged for evals." },
+  },
+  "POST /v1/tools/search": {
+    group: "tools",
+    desc: "keyword search over stored notes (FTS5)",
+    exampleBody: { query: "pipeline" },
+  },
+  "POST /v1/tools/calculate": {
+    group: "tools",
+    desc: "safe arithmetic evaluator",
+    exampleBody: { expr: "2 + 3 * 4" },
+  },
+
+  "GET /v1/traces/export": {
+    group: "traces",
+    desc: "export recorded traces (format=sft|jsonl, limit) — fuel for the fine-tune flywheel",
+    examplePath: "/v1/traces/export?format=sft&limit=5",
+  },
+  "POST /v1/traces/": {
+    group: "traces",
+    desc: "attach human feedback to a completed trace (up/down + note)",
+    display: "/v1/traces/{id}/feedback",
+    examplePath: "/v1/traces/PASTE_TRACE_ID/feedback",
+    exampleBody: { feedback: "up", note: "from the api console" },
+  },
+};
+
+const GROUP_ORDER = ["live", "ops", "chat", "memory", "control", "tools", "traces"];
+const GROUP_TITLES = {
+  live: "Live feed & UI",
+  ops: "Operations",
+  chat: "Chat, embeddings & compaction",
+  memory: "Memory bank",
+  control: "Control plane",
+  tools: "Tool registry",
+  traces: "Traces & evals",
+};
+
+function groupOf(p) {
+  if (p.startsWith("/v1/chat")) return "chat";
+  if (p === "/v1/embeddings" || p === "/v1/compact") return "chat";
+  if (p.startsWith("/v1/memory")) return "memory";
+  if (p.startsWith("/v1/control")) return "control";
+  if (p.startsWith("/v1/tools")) return "tools";
+  if (p.startsWith("/v1/traces")) return "traces";
+  if (p === "/health" || p === "/metrics" || p === "/v1/models") return "ops";
+  return "live";
+}
+
+function buildCatalog() {
+  const routes = parseRoutes();
+  const problems = [];
+  const rows = [];
+
+  for (const r of routes) {
+    const key = `${r.method} ${r.path}`;
+    const meta = META[key];
+    if (!meta) { problems.push(`server route without docs: ${key}`); continue; }
+    rows.push({
+      method: r.method,
+      path: meta.display || r.path,
+      group: meta.group || groupOf(r.path),
+      desc: meta.desc,
+      kind: meta.kind || "http",
+      examplePath: meta.examplePath || r.path,
+      exampleBody: meta.exampleBody === undefined ? null : meta.exampleBody,
+    });
+  }
+
+  /* stale docs = META entries for routes that no longer exist */
+  for (const key of Object.keys(META)) {
+    if (!routes.some((r) => `${r.method} ${r.path}` === key)) {
+      problems.push(`docs for a route that no longer exists: ${key}`);
+    }
+  }
+
+  if (problems.length) {
+    console.error("catalog drift detected:");
+    for (const p of problems) console.error("  ✗ " + p);
+    process.exit(1);
+  }
+
+  const groups = GROUP_ORDER.map((id) => ({
+    id,
+    title: GROUP_TITLES[id],
+    routes: rows.filter((r) => r.group === id),
+  })).filter((g) => g.routes.length);
+
+  return {
+    source: "loco/server.py (parsed by scripts/build-ui)",
+    count: rows.length,
+    groups,
+  };
+}
+
+/* ------------------------------------------------------------- run ------ */
+function main() {
+  console.log("build-ui: compiling ui/ts → ui/*.js");
+  for (const line of compileTs()) console.log("  ✓ " + line);
+
+  console.log("build-ui: generating ui/endpoints.json from loco/server.py");
+  const catalog = buildCatalog();
+  fs.writeFileSync(path.join(UI_DIR, "endpoints.json"), JSON.stringify(catalog, null, 1) + "\n");
+  console.log(`  ✓ ${catalog.count} routes across ${catalog.groups.length} groups`);
+
+  console.log("build-ui: ok");
+}
+
+main();

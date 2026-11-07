@@ -1,0 +1,8 @@
+{"duration_s": 2.69, "finish_reason": "stop", "model": "lfm3-1.7b", "reason": "content check", "status": "pass", "task_id": "route-001", "trace_id": "115191d2-b2c0-4dec-8e22-5a40bd2a2cf3"}
+{"duration_s": 1.83, "finish_reason": "length", "model": "lfm3-1.7b", "reason": "content check", "status": "fail", "task_id": "route-002", "trace_id": "4f01361a-708e-4659-bfee-e607c833899a"}
+{"duration_s": 1.82, "finish_reason": "length", "model": "lfm3-1.7b", "reason": "content check", "status": "fail", "task_id": "plan-001", "trace_id": "9e52a907-e4b9-471c-9978-b0a760f61f95"}
+{"duration_s": 0.62, "finish_reason": "stop", "model": "lfm3-1.7b", "reason": "content check", "status": "pass", "task_id": "verify-001", "trace_id": "95ecd3f6-c044-42fb-8c50-906e3933ec0d"}
+{"duration_s": 1.82, "finish_reason": "length", "model": "lfm3-1.7b", "reason": "content check", "status": "fail", "task_id": "refuse-001", "trace_id": "a74eec33-1e4a-4176-8090-4126e3c2b842"}
+{"duration_s": 1.62, "finish_reason": "stop", "model": "lfm3-1.7b", "reason": "content check", "status": "pass", "task_id": "extract-001", "trace_id": "37decf60-7286-4622-bced-ef8f6aaaf5ed"}
+{"duration_s": 1.81, "finish_reason": "length", "model": "lfm3-1.7b", "reason": "content check", "status": "fail", "task_id": "memory-review-001", "trace_id": "d8594d92-c33d-4409-add9-322bc7b5f5bd"}
+{"duration_s": 1.86, "finish_reason": "length", "model": "lfm3-1.7b", "reason": "content check", "status": "fail", "task_id": "compact-001", "trace_id": "f4c4b9c7-dfe2-426d-bc84-6b7f838d9233"}

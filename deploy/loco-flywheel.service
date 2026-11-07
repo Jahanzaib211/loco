@@ -1,0 +1,25 @@
+[Unit]
+Description=Loco flywheel maintenance (curate, split, report)
+Documentation=file:/home/jahanzaib/Desktop/Loco/docs/RESEARCH.md
+After=loco.service
+
+[Service]
+Type=oneshot
+User=jahanzaib
+Group=jahanzaib
+WorkingDirectory=/home/jahanzaib/Desktop/Loco
+ExecStart=/bin/sh /home/jahanzaib/Desktop/Loco/scripts/loco-flywheel
+
+# Maintenance is not inference: lowest priority, same sandbox as the service,
+# and it only writes data/results/logs (plus SQLite state it reads).
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/jahanzaib/Desktop/Loco/data /home/jahanzaib/Desktop/Loco/results /home/jahanzaib/Desktop/Loco/logs /home/jahanzaib/Desktop/Loco/memory
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+LockPersonality=true
+UMask=0077

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loco — Embeddings</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui/app.css">
+</head><body data-active="embed.html">
+<aside class="side">
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
+</aside>
+<main class="main">
+  <div class="top">
+    <div><h1>Embeddings</h1><div class="sub">bge-small-en-v1.5 · 384d · drives memory search + semantic cache</div></div>
+    <span class="pill"><span class="dot live-dot"></span> <span id="liveTxt">live · ws</span></span>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Embed text</h3>
+      <textarea id="a" style="min-height:120px">propelled by local GPUs, nothing leaves the lab</textarea>
+      <div class="row" style="margin:8px 0"><button class="primary" id="embedA">Embed A</button><span class="muted" id="statA"></span></div>
+      <pre id="vecA" class="log">…</pre>
+    </div>
+    <div class="card">
+      <h3>Similarity check</h3>
+      <p class="muted" style="font-size:12px">embed a second text and see cosine similarity — the same math the memory bank uses to rank recall (and the 0.93-gate a semantic cache would use later).</p>
+      <textarea id="b" style="min-height:120px">running AI on your own machine, private</textarea>
+      <div class="row" style="margin:8px 0"><button class="primary" id="embedB">Embed B</button><span class="muted" id="statB"></span></div>
+      <pre id="cos" class="log">…</pre>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>Why embeddings exist here</h3>
+    <div class="grid g3">
+      <div><b>Memory bank</b><p class="muted" style="font-size:12px">every note is embedded once at ingest; search ranks by cosine·score</p></div>
+      <div><b>Semantic cache</b><p class="muted" style="font-size:12px">temperature-0 identical requests short-circuit (0.93 gate)</p></div>
+      <div><b>Compaction verify</b><p class="muted" style="font-size:12px">brief-vs-original cosine sanity check (nightly job, planned)</p></div>
+    </div>
+  </div>
+</main>
+<script src="/ui/app.js"></script>
+<script src="/ui/scene.js"></script>
+<script>
+let vecA = null;
+async function embed(text) {
+  const r = await api("/v1/embeddings", { method: "POST", body: { input: text } });
+  if (!r.ok) throw new Error(r.data?.error?.message || "embed failed");
+  return r.data.data[0].embedding;
+}
+const norm = v => Math.sqrt(v.reduce((s, x) => s + x * x, 0));
+const cos = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0) / (norm(a) * norm(b));
+$("#embedA").addEventListener("click", async () => {
+  try {
+    $("#statA").textContent = "embedding…";
+    vecA = await embed($("#a").value);
+    $("#statA").textContent = `384 dims · ‖v‖ ${norm(vecA).toFixed(2)}`;
+    if (window.__locoEmbedState) { window.__locoEmbedState.a = pca2(vecA); window.__locoEmbedState.b = window.__locoEmbedState.b || null; window.__locoEmbedState.cos = null; }
+    $("#vecA").textContent = "[ " + vecA.slice(0, 16).map(x => x.toFixed(4)).join(", ") + " … ]";
+  } catch (e) { $("#statA").textContent = "error: " + e.message; }
+});
+$("#embedB").addEventListener("click", async () => {
+  try {
+    $("#statB").textContent = "embedding…";
+    const b = await embed($("#b").value);
+    $("#statB").textContent = `384 dims · ‖v‖ ${norm(b).toFixed(2)}`;
+    if (window.__locoEmbedState) { window.__locoEmbedState.b = pca2(b); if (vecA) window.__locoEmbedState.cos = cos(vecA, b); }
+    if (vecA) $("#cos").textContent = "cos(A, B) = " + cos(vecA, b).toFixed(4) + "\n\n(≈1 identical · ≈0 unrelated · bge cosine, this rig)";
+    else $("#cos").textContent = "embed A first";
+  } catch (e) { $("#statB").textContent = "error: " + e.message; }
+});
+</script>
+
+<div class="scene-card card" style="margin-top:14px">
+  <div class="scene-head">
+    <h3>live pipeline · 3D</h3>
+    <span class="badge acc">ws streaming</span>
+    <div class="legend">
+      <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>apps</span>
+      <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>embed</span>
+      <span class="lg"><i style="background:#87c5ff;color:#87c5ff"></i>memory</span>
+    </div>
+    <span class="spacer"></span>
+    <span class="pill">vector</span>
+  </div>
+  <canvas id="embedScene" style="width:100%;height:240px;display:block"></canvas>
+</div>
+<script>
+/* embed 3D scene: scope = vector space — A and B plotted, cosine arc between */
+(function(){
+  window.__locoEmbedState = { a: null, b: null, cos: null, t: 0 };
+  window.sceneSetCanvas("embedScene");
+  window.sceneSetActor(function (ctx, now, dt) {
+    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
+    C.clearRect(0, 0, cv ? cv.width : 800, cv ? cv.height : 240);
+    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
+    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
+    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+    const st = window.__locoEmbedState;
+
+    /* axes */
+    C.strokeStyle = "rgba(110,168,255,.14)"; C.lineWidth = 1;
+    C.beginPath(); C.moveTo(X(40), Y(60)); C.lineTo(X(760), Y(60)); C.stroke();
+    C.beginPath(); C.moveTo(X(40), Y(60)); C.lineTo(X(40), Y(-120)); C.stroke();
+    C.font = "700 9px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(138,149,173,.75)";
+    C.fillText("384-DIM SPACE (PCA-2 PROJECTION)", X(44), Y(78));
+
+    /* point A */
+    if (st.a) {
+      const ax = X(120 + st.a[0] * 260), ay = Y(60 - st.a[1] * 70);
+      C.beginPath(); C.arc(ax, ay, 8, 0, Math.PI * 2);
+      C.fillStyle = "rgba(110,168,255,.9)"; C.fill();
+      C.fillStyle = "rgba(255,255,255,.9)"; C.beginPath(); C.arc(ax, ay, 3, 0, Math.PI * 2); C.fill();
+      C.font = "700 10px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(110,168,255,.95)";
+      C.fillText("A", ax + 12, ay + 4);
+    }
+    /* point B */
+    if (st.b) {
+      const bx = X(120 + st.b[0] * 260), by = Y(60 - st.b[1] * 70);
+      C.beginPath(); C.arc(bx, by, 8, 0, Math.PI * 2);
+      C.fillStyle = "rgba(61,220,151,.9)"; C.fill();
+      C.fillStyle = "rgba(255,255,255,.9)"; C.beginPath(); C.arc(bx, by, 3, 0, Math.PI * 2); C.fill();
+      C.font = "700 10px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(61,220,151,.95)";
+      C.fillText("B", bx + 12, by + 4);
+    }
+    /* cosine arc */
+    if (st.a && st.b && st.cos != null) {
+      const ax = 120 + st.a[0] * 260, ay = 60 - st.a[1] * 70;
+      const bx = 120 + st.b[0] * 260, by = 60 - st.b[1] * 70;
+      C.strokeStyle = "rgba(167,139,250,.75)"; C.lineWidth = 2;
+      C.setLineDash([5, 4]);
+      C.beginPath(); C.moveTo(X(ax), Y(ay)); C.lineTo(X(bx), Y(by)); C.stroke();
+      C.setLineDash([]);
+      /* angle arc at A */
+      const ang = Math.acos(Math.max(-1, Math.min(1, st.cos)));
+      C.strokeStyle = "rgba(246,193,119,.8)";
+      C.beginPath();
+      C.arc(X(ax), Y(ay), 34, -Math.atan2(by - ay, bx - ax), -Math.atan2(by - ay, bx - ax) + ang, false);
+      C.stroke();
+      C.font = "700 11px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(246,193,119,.95)";
+      C.fillText("cos " + st.cos.toFixed(4), X(ax) + 40, Y(ay) - 40);
+    }
+    /* idle shimmer so it never looks dead */
+    const pulse = 0.5 + 0.5 * Math.sin(now / 700);
+    C.strokeStyle = "rgba(87,230,255," + (0.08 + pulse * 0.08).toFixed(3) + ")";
+    C.beginPath(); C.arc(X(420), Y(-10), 60 + pulse * 8, 0, Math.PI * 2); C.stroke();
+  });
+})();
+</script>
+</body>
+</html>

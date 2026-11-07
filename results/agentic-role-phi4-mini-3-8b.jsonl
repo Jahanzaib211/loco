@@ -1,0 +1,8 @@
+{"duration_s": 4.67, "finish_reason": "stop", "model": "phi4-mini-3.8b", "reason": "content check", "status": "pass", "task_id": "route-001", "trace_id": "f7ee4bd3-0734-4afd-9d24-0c3bd934e269"}
+{"duration_s": 2.83, "finish_reason": "stop", "model": "phi4-mini-3.8b", "reason": "content check", "status": "pass", "task_id": "route-002", "trace_id": "50e7da45-7330-4cf4-9aa3-12c19f95c9a4"}
+{"duration_s": 3.04, "finish_reason": "stop", "model": "phi4-mini-3.8b", "reason": "content check", "status": "fail", "task_id": "plan-001", "trace_id": "e401e3da-0a7d-4da9-903e-e4c22637ca51"}
+{"duration_s": 2.8, "finish_reason": "stop", "model": "phi4-mini-3.8b", "reason": "content check", "status": "pass", "task_id": "verify-001", "trace_id": "947e6cca-1626-4d89-b1bf-93f9040fe200"}
+{"duration_s": 3.58, "finish_reason": "stop", "model": "phi4-mini-3.8b", "reason": "content check", "status": "fail", "task_id": "refuse-001", "trace_id": "3df3fb0d-b1e2-4a42-b650-9b8bf8311c4a"}
+{"duration_s": 3.09, "finish_reason": "stop", "model": "phi4-mini-3.8b", "reason": "content check", "status": "pass", "task_id": "extract-001", "trace_id": "851858c3-ebe5-4267-8dac-780df473f8bc"}
+{"duration_s": 2.92, "finish_reason": "stop", "model": "phi4-mini-3.8b", "reason": "content check", "status": "pass", "task_id": "memory-review-001", "trace_id": "17b145da-f82a-4d73-b77f-d2be9c364253"}
+{"duration_s": 3.06, "finish_reason": "stop", "model": "phi4-mini-3.8b", "reason": "content check", "status": "pass", "task_id": "compact-001", "trace_id": "e0740449-5a66-4baf-a227-4101b517c183"}

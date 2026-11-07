@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loco — Context compactor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/ui/app.css">
+</head><body data-active="compact.html">
+<aside class="side">
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
+</aside>
+<main class="main">
+  <div class="top">
+    <div><h1>Context compactor</h1><div class="sub">long chat → dense MEMORY BRIEF · keeps system + pinned + last N turns</div></div>
+    <span class="pill"><span class="dot live-dot"></span> <span id="liveTxt">live · ws</span></span>
+  </div>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Input — paste a conversation</h3>
+      <p class="muted" style="font-size:12px">Either raw JSON (<code>[{"role":"user","content":"…"}]</code>) or simple lines like <code>user: hello</code> / <code>assistant: hi</code>.</p>
+      <textarea id="src" style="min-height:46vh">user: I migrated local GGUF stack to the Inference Engine path.
+assistant: Noted — /home/jahanzaib/Desktop/Inference Engine/llama.cpp, and /usr/local/bin/llama-server is now a symlink to it.
+user: Disk is 78% full, 98G free; docker prune saved 11GB.
+assistant: Logged. Watch /var usage.
+user: vault.alilabsx.com needed a Cloudflare tunnel fix — host networking because of localhost:8081.
+assistant: Fixed via vault-tunnel container with network_mode=host; verified HTTP 200.
+user: Now I want the loco router on :8200 with VRAM gating.
+assistant: VRAM gate implemented: unload local GGUF stack children first, then managed backend; refuse overload deterministically.
+user: The gemma GGUF is a merged multimodal checkpoint, local GGUF stack can't load it.</textarea>
+      <div class="row" style="margin:10px 0">
+        <div><label>Keep last messages</label><input id="keepLast" type="number" value="2" min="0" max="20" style="width:80px"></div>
+        <span class="spacer"></span>
+        <button class="primary" id="go">Compact →</button>
+      </div>
+      <div class="muted" id="inStats">0 words · ~0 tokens</div>
+    </div>
+    <div class="card">
+      <h3>Output — what the agent sees</h3>
+      <pre id="brief" style="min-height:52vh;white-space:pre-wrap;font-size:13px">(run it →)</pre>
+      <div class="muted" id="outStats"></div>
+    </div>
+  </div>
+
+  <div class="scene-card card" style="margin-top:14px">
+    <div class="scene-head">
+      <h3>live pipeline · 3D</h3>
+      <span class="badge acc">ws streaming</span>
+      <div class="legend">
+        <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>apps</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>loco</span>
+        <span class="lg"><i style="background:#87c5ff;color:#87c5ff"></i>classify</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>backend</span>
+        <span class="lg"><i style="background:#61d1b5;color:#61d1b5"></i>memory</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="pill">transform</span>
+    </div>
+    <canvas id="compactScene" style="width:100%;height:240px;display:block"></canvas>
+  </div>
+</main>
+<script src="/ui/app.js"></script>
+<script src="/ui/scene.js"></script>
+<script>
+/* compact 3D scene: scope = compression — a big transcript squeezed into a brief */
+(function(){
+  window.__locoCompactState = { inWords: 0, outWords: 0, ratio: null, t: 0 };
+  window.sceneSetCanvas("compactScene");
+  window.sceneSetActor(function (ctx, now, dt) {
+    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
+    C.clearRect(0, 0, cv ? cv.width : 800, cv ? cv.height : 240);
+    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
+    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
+    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+    const st = window.__locoCompactState;
+
+    /* input transcript — a tall stack of message lines */
+    const inH = 120;
+    C.fillStyle = "#111927"; C.fillRect(X(20), Y(60 - inH), 250, inH);
+    C.strokeStyle = "rgba(110,168,255,.35)"; C.strokeRect(X(20), Y(60 - inH), 250, inH);
+    C.font = "700 10px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(138,149,173,.9)";
+    C.fillText("TRANSCRIPT", X(28), Y(74));
+    C.fillStyle = "rgba(110,168,255,.55)";
+    const lines = Math.min(14, Math.max(2, Math.round(st.inWords / 12)));
+    for (let i = 0; i < lines; i++) {
+      C.fillRect(X(28), Y(56 - inH) + 22 + i * 12, 60 + ((i * 37) % 170), 4);
+    }
+
+    /* the funnel */
+    C.strokeStyle = "rgba(87,230,255,.3)"; C.lineWidth = 2;
+    C.beginPath(); C.moveTo(X(285), Y(60 - inH)); C.lineTo(X(430), Y(6)); C.stroke();
+    C.beginPath(); C.moveTo(X(285), Y(60)); C.lineTo(X(430), Y(6)); C.stroke();
+    /* travelling compression dots */
+    const k = ((now % 1800) / 1800);
+    for (let i = 0; i < 4; i++) {
+      const t = (k + i * 0.25) % 1;
+      const px = 285 + (430 - 285) * t, py = (60 - inH + (60 - (60 - inH)) * t) * 0 + ((60 - inH) + (6 - (60 - inH)) * t);
+      C.beginPath(); C.arc(X(px), Y(py), 3.4, 0, Math.PI * 2);
+      C.fillStyle = "rgba(87,230,255,.8)"; C.fill();
+    }
+
+    /* output brief — small and dense */
+    const outH = 46;
+    C.fillStyle = "#0f2b22"; C.fillRect(X(445), Y(30 - outH), 150, outH);
+    C.strokeStyle = "rgba(61,220,151,.5)"; C.strokeRect(X(445), Y(30 - outH), 150, outH);
+    C.font = "700 10px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(138,149,173,.9)";
+    C.fillText("MEMORY BRIEF", X(453), Y(42));
+    C.fillStyle = "rgba(61,220,151,.75)";
+    for (let i = 0; i < 4; i++) C.fillRect(X(453), Y(28 - outH) + 22 + i * 8, 60 + ((i * 29) % 60), 3);
+
+    /* ratio readout */
+    C.textAlign = "right";
+    C.fillStyle = "rgba(246,193,119,.95)"; C.font = "700 12px ui-monospace, Menlo, monospace";
+    C.fillText(st.ratio != null ? st.ratio + "% kept" : "—", X(760), Y(20));
+    C.font = "700 9px ui-monospace, Menlo, monospace";
+    C.fillStyle = "rgba(138,149,173,.75)";
+    C.fillText(st.inWords + " → " + st.outWords + " words", X(760), Y(36));
+    C.textAlign = "left";
+  });
+})();
+</script>
+<script>
+const src = $("#src");
+src.addEventListener("input", () => {
+  const w = src.value.trim().split(/\s+/).filter(Boolean).length;
+  $("#inStats").textContent = `${w} words · ~${Math.round(w * 1.33)} tokens`;
+});
+function parseTranscript(raw) {
+  raw = raw.trim();
+  try { const j = JSON.parse(raw); if (Array.isArray(j)) return j; } catch {}
+  const out = [];
+  for (const line of raw.split("\n")) {
+    const m = line.match(/^(user|assistant|system)\s*:\s*(.*)$/i);
+    if (m) out.push({ role: m[1].toLowerCase(), content: m[2].trim() });
+    else if (out.length) out[out.length - 1].content += " " + line.trim();
+  }
+  return out;
+}
+$("#go").addEventListener("click", async () => {
+  const messages = parseTranscript(src.value);
+  if (messages.length < 6) { toast("need at least 6 messages"); return; }
+  $("#brief").textContent = "compacting through the main lane…";
+  const r = await api("/v1/compact", { method: "POST", body: { messages, keep_last: Number($("#keepLast").value || 2) } });
+  if (!r.ok) { $("#brief").textContent = "error: " + (r.data?.error?.message || r.status); return; }
+  $("#brief").textContent = (r.data.messages || []).map(m => `[${m.role}]\n${m.content}`).join("\n\n");
+  const orig = src.value.trim().split(/\s+/).filter(Boolean).length;
+  const kept = (r.data.messages || []).map(m => m.content).join(" ").trim().split(/\s+/).filter(Boolean).length;
+  $("#outStats").textContent = `compacted ${r.data.compacted} turns · ${orig} → ${kept} words (~${Math.round(kept * 1.33)} tokens)`;
+  if (window.__locoCompactState) { const s = window.__locoCompactState; s.inWords = orig; s.outWords = kept; s.ratio = orig ? Math.round((kept / orig) * 100) : null; }
+});
+src.dispatchEvent(new Event("input"));
+</script>
+</body>
+</html>
