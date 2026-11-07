@@ -42,7 +42,7 @@ no bundler.
 
 ## License
 
-Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+Apache License 2.0 — see [`LICENSE.txt`](LICENSE.txt) and [`NOTICE`](NOTICE).
 
 Model artifacts are **not** bundled. Loco references local model files you
 download yourself; any artifact remains under its own terms, which apply
