@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import config as C
 from . import telemetry, routing, semantic, memory, backend, exporter
 from . import vector_store, capacity
+from . import catalogue
 from . import events
 from . import ws as ws_mod
 from . import systemprompts, presets
@@ -192,17 +193,16 @@ class Handler(BaseHTTPRequestHandler):
                             "ollama": [model_id for model_id, spec in MODEL_SPECS.items()
                                        if spec.backend == "ollama"],
                             "embeddings": ["bge-small-en-v1.5"],
+                            "available": catalogue.available_chat_ids(),
                         }})
             return
-        if self.path == "/v1/models":
-            self._json({"object": "list",
-                        "data": [
-                            {"id": AUTO_MODEL, "object": "model", "owned_by": "loco",
-                             "permission": [], "aliases": ["auto"]},
-                            *chat_model_payload(),
-                            {"id": "bge-small-en-v1.5", "object": "model",
-                             "owned_by": "loco-recipe", "permission": []},
-                        ]})
+        if self.path.startswith("/v1/models"):
+            # Publish what the backends can really serve, not the registry
+            # wish list. ?all=1 shows the whole registry with an explicit
+            # "available" flag per entry.
+            from urllib.parse import urlparse, parse_qs
+            show_all = parse_qs(urlparse(self.path).query).get("all", ["0"])[0] in {"1", "true", "yes"}
+            self._json(catalogue.models_payload(show_all=show_all))
             return
         if self.path == "/metrics":
             gpu = _gpu()
