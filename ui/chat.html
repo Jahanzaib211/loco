@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Loco — Chat playground</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2336454f%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%23708090%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<script>try{if(localStorage.getItem("loco-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="/ui/app.css">
 </head><body data-active="chat.html">
 <aside class="side">
-  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="currentColor" stroke-width="1.6" opacity=".9"/><circle cx="19" cy="19" r="6.5" stroke="currentColor" stroke-width="1.3" opacity=".6"/><circle cx="27.5" cy="19" r="2.8" stroke="currentColor" stroke-width="1.2" opacity=".42"/><path d="M13.2 19 H24.8" stroke="currentColor" stroke-width="1.1" opacity=".35"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
   <nav class="nav" id="nav"></nav>
   <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
 </aside>
@@ -33,7 +34,6 @@
       </div>
     </div>
     <canvas id="chatScene" style="width:100%;height:260px;display:block"></canvas>
-    <div class="hud" style="position:absolute;top:10px;right:10px;font:9px ui-monospace;color:#8ab4f8">CHAT · 3D</div>
   </div>
 
   <div class="chat-grid">
@@ -142,78 +142,140 @@ document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.ke
 
 /* --- chat 3D scene: scope = one conversation round-trip ------------------ */
 (function () {
-  const COLS = { chat: [110, 168, 255], math: [246, 193, 117], code: [61, 220, 151], vision: [255, 107, 138], compact: [167, 139, 250], cache: [87, 230, 255] };
+  const COLS = { chat: [110, 168, 255], math: [246, 193, 119], code: [61, 220, 151], vision: [255, 107, 138], compact: [167, 139, 250], cache: [87, 230, 255] };
   function colOf(ev) { if (ev && ev.cache_hit) return COLS.cache; const t = String((ev && ev.task) || "route").toLowerCase(); return COLS[t] || COLS.chat; }
   window.__locoChatState = { phase: "idle", tokens: 0, model: "", prompt: "" };
   window.__locoChatEv = null;
   window.__locoChatPk = null;
 
+  const B = { x0: -480, x1: 480, y0: 0, y1: 200, z0: -120, z1: 120 };
+  const RAIL = [
+    { x: -390, y: 12, z: -30 },
+    { x: -230, y: 12, z: 0 },
+    { x: -20, y: 12, z: 30 },
+    { x: 270, y: 12, z: -20 },
+  ];
+  const modelParts = (m) => {
+    const raw = String(m || "").split("/").pop() || "auto";
+    const bits = raw.split(":");
+    let base = bits[0] || raw;
+    if (base === "loco") base = bits[1] || "auto";
+    return { base: base.slice(0, 18), tag: (bits[1] || "").slice(0, 10) };
+  };
+
   function startChatScene() {
     try { window.sceneSetCanvas("chatScene"); } catch (e) { console.error("sceneSetCanvas", e); }
-    try { window.sceneSetActor(function (ctx, now, dt) {
-      const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
-      C.clearRect(0, 0, cv ? cv.width : 900, cv ? cv.height : 260);
-      const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
-      const ox = fit.ox, oy = fit.oy, sc = fit.sc;
-      const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+    try { window.sceneSetActor(function (act) {
+      const C = act.ctx, w = act.w, h = act.h, now = act.now;
+      if (!C || !w || !h) return;
+      const dpr = window.devicePixelRatio || 1;
+      C.setTransform(dpr, 0, 0, dpr, 0, 0);
+      C.clearRect(0, 0, w, h);
       const st = window.__locoChatState;
+      const towerH = 64 + Math.min(90, Number(st.tokens || 0) * 1.5);
+      const S = window.SceneKit.begin(C, B, {
+        dw: w, dh: h, ky: 0.42, padX: 16, padTop: 26, padBottom: 20,
+        points: [
+          { x: -450, y: 0, z: -75 }, { x: -450, y: 128, z: -30 },
+          { x: -20, y: towerH + 55, z: 30 }, { x: 340, y: 152, z: -20 },
+          { x: 340, y: 0, z: -65 }, { x: -460, y: 132, z: -100 },
+        ],
+      });
+      S.bg();
+      S.grid({ x0: -470, x1: 470, z0: -110, z1: 110, step: 40 });
 
-      /* 1. prompt block */
-      C.fillStyle = "#111927"; C.fillRect(X(-30), Y(-46), 190, 112);
-      C.strokeStyle = "rgba(110,168,255,.35)"; C.lineWidth = 1; C.stroke();
-      C.font = "700 10px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(138,149,173,.9)";
-      C.textAlign = "left"; C.fillText("PROMPT", X(-22), Y(-32));
-      const pw = Math.min(170, 12 + st.prompt.length * 4.6);
-      C.fillStyle = "rgba(110,168,255,.55)";
-      C.fillRect(X(-22), Y(-18), pw, 5);
-      C.fillStyle = "rgba(110,168,255,.3)";
-      C.fillRect(X(-22), Y(-4), pw * 0.6, 5);
-
-      /* 2. the brain that answered — tower height = tokens produced */
-      const gh = 46 + Math.min(120, st.tokens * 2.2);
+      const blue = [110, 168, 255], cyan = [87, 230, 255], green = [61, 220, 151];
       const hot = st.phase === "gen";
-      C.fillStyle = hot ? "rgba(63,123,255,.8)" : "#1e2b47";
-      C.fillRect(X(212), Y(34 - gh), 76, gh);
-      C.strokeStyle = hot ? "rgba(87,230,255,.7)" : "rgba(87,230,255,.3)";
-      C.strokeRect(X(212), Y(34 - gh), 76, gh);
-      if (hot) { C.fillStyle = "rgba(87,230,255,.18)"; C.fillRect(X(212), Y(34 - gh), 76, gh); }
+      const ev = window.__locoChatEv || {};
 
-      /* 3. response block fills as tokens arrive */
-      C.fillStyle = "#111927"; C.fillRect(X(336), Y(-46), 260, 112);
-      C.strokeStyle = "rgba(61,220,151,.35)"; C.stroke();
-      C.fillStyle = "rgba(138,149,173,.9)"; C.fillText("RESPONSE", X(348), Y(-32));
-      C.fillStyle = "rgba(87,230,255,.8)";
-      const rows = Math.min(6, Math.ceil(st.tokens / 8));
-      for (let i = 0; i < rows; i++) C.fillRect(X(348), Y(-18) + i * 15, 88 + (i % 3) * 48, 5);
-
-      /* 4. the wire between them, coloured by task */
-      C.strokeStyle = "rgba(110,168,255,.22)"; C.lineWidth = 2;
-      C.beginPath(); C.moveTo(X(160), Y(10)); C.lineTo(X(212), Y(10)); C.stroke();
-      C.beginPath(); C.moveTo(X(288), Y(10)); C.lineTo(X(336), Y(10)); C.stroke();
-
-      /* 5. labels */
-      C.font = "700 10px ui-monospace, Menlo, monospace";
-      C.fillStyle = "rgba(138,149,173,.9)"; C.textAlign = "center";
-      C.fillText("REQUEST", X(65), Y(82));
-      C.fillText((st.model || "routing").toUpperCase().slice(0, 22), X(250), Y(82));
-      C.fillText("RESPONSE", X(466), Y(82));
-      C.textAlign = "left";
-
-      /* 6. live packet on the wire */
+      /* the wire */
+      S.line(RAIL, cyan, { alpha: 0.07, width: 7 });
+      S.line(RAIL, cyan, { alpha: 0.28, width: 1.8, dash: [8, 8], offset: -(now / 30) % 16, glow: 8 });
       const pk = window.__locoChatPk;
-      if (pk) {
-        const a = pk.pts[pk.seg], b = pk.pts[pk.seg + 1], t = pk.segT;
-        const p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
-        const proj = { x: X(p.x), y: Y(p.y), f: 1 };
-        const col = colOf(window.__locoChatEv || {});
-        const r = 6;
-        const g = C.createRadialGradient(proj.x, proj.y, 0, proj.x, proj.y, r * 3.4);
-        g.addColorStop(0, "rgba(" + col.join(",") + ",0.95)");
-        g.addColorStop(0.35, "rgba(" + col.join(",") + ",0.34)");
-        g.addColorStop(1, "rgba(" + col.join(",") + ",0)");
-        C.fillStyle = g; C.beginPath(); C.arc(proj.x, proj.y, r * 3.4, 0, Math.PI * 2); C.fill();
-        C.fillStyle = "rgba(255,255,255,.9)"; C.beginPath(); C.arc(proj.x, proj.y, r * 0.45, 0, Math.PI * 2); C.fill();
+      const t = pk ? Math.min(1, (now - pk.t0) / 2400) : (now / 2800) % 1;
+      S.flow(RAIL, t, pk ? pk.rgb : blue, { trail: 6, spread: 0.07, r: 3.4, alpha: pk ? 0.95 : 0.5 });
+
+      /* prompt slab */
+      const px = -390, pz = -30;
+      S.box(px, -4, pz, 120, 8, 86, [16, 24, 36], { edgeAlpha: 0.1 });
+      S.box(px, 6, pz, 96, 88, 14, [22, 34, 54], { edgeAlpha: 0.3, front: S.shade([22, 34, 54], 1.12) });
+      S.box(px, 84, pz, 72, 6, 1.4, blue, { emis: 0.4, edgeAlpha: 0.4 });
+      const promptRows = Math.max(1, Math.min(5, Math.ceil(String(st.prompt || "").length / 28)));
+      for (let i = 0; i < 5; i++) {
+        const on = i < promptRows;
+        S.box(px - 26, 72 - i * 13, pz - 7.4, on ? 46 + ((i * 23) % 28) : 42, 4, 0.9, blue, {
+          alpha: on ? 0.6 : 0.14, emis: on ? 0.15 : 0.02, edgeAlpha: 0,
+        });
       }
+      S.tag("PROMPT", px, 122, pz, {
+        size: 11.5, color: S.rgb(blue, 0.96), sub: "client · text", subSize: 8.6,
+        subColor: "rgba(158,190,238,.88)", bgFill: "rgba(7,12,20,.8)",
+      });
+
+      /* loco gateway */
+      const gx = -230, gz = 0;
+      S.box(gx, -4, gz, 86, 8, 76, [16, 24, 36], { edgeAlpha: 0.1 });
+      S.box(gx, 0, gz, 54, 48, 50, [40, 56, 84], { edgeAlpha: 0.26 });
+      S.box(gx, 48, gz, 30, 8, 30, cyan, { emis: 0.45, edgeAlpha: 0.5 });
+      S.box(gx, 9, gz - 25.2, 40, 28, 1.2, cyan, { emis: 0.28, edgeAlpha: 0.3, alpha: 0.65 });
+      S.tag("LOCO", gx, 82, gz, { size: 10.5, color: S.rgb(cyan, 0.94), sub: "router", subSize: 8, subColor: "rgba(150,220,240,.85)", bgFill: "rgba(7,12,20,.8)" });
+
+      /* the answering tower */
+      const mx = -20, mz = 30;
+      const th = towerH;
+      const mp = modelParts(st.model);
+      const tcol = hot ? cyan : [72, 110, 158];
+      S.box(mx, -4, mz, 90, 8, 76, [16, 24, 36], { edgeAlpha: 0.1 });
+      S.box(mx, 0, mz, 46, th, 46, [32, 50, 78], { emis: hot ? 0.06 : 0.02, edgeAlpha: hot ? 0.34 : 0.2 });
+      for (let i = 1; i <= 3; i++) {
+        const y = 6 + (th - 16) * (i / 4);
+        S.box(mx, y, mz - 23.3, 36, 1.2, 0.6, tcol, { alpha: hot ? 0.65 : 0.22, emis: hot ? 0.2 : 0.03, edgeAlpha: 0 });
+      }
+      S.box(mx, th, mz, 50, 8, 50, tcol, { emis: hot ? 0.6 : 0.18, edgeAlpha: hot ? 0.55 : 0.25 });
+      S.dot(mx, th + 16, mz, tcol, 2.2, { alpha: hot ? 0.95 : 0.4 });
+      if (hot) {
+        for (let i = 0; i < 7; i++) {
+          const yy = th + 8 + ((now / 1000 * 22 + i * 10) % 26);
+          S.dot(mx + Math.sin(i * 2.1 + now / 500) * 20, yy, mz + Math.cos(i * 1.7 + now / 600) * 16, cyan, 1.1, {
+            alpha: 0.42 * (1 - (yy - th - 8) / 30),
+          });
+        }
+      }
+      /* the model name runs up the tower face; the cap carries the state */
+      const faceMax = Math.max(6, Math.floor(((th - 18) * S.s) / 5.4));
+      const face = mp.base.slice(0, faceMax);
+      const vlen = (face.length * 5.4) / Math.max(0.1, S.s);
+      S.vlabel(face, mx, Math.max(8, th - vlen - 8), mz - 23.5, {
+        size: 9, color: hot ? S.rgb(tcol, 0.98) : "rgba(132,164,208,.88)",
+      });
+      const lane = hot ? "generating" : st.phase === "done" ? "answered" : "awaiting route";
+      S.tag("MODEL", mx, th + 40, mz, {
+        size: 10.5, color: S.rgb(tcol, 0.95),
+        sub: `${mp.tag ? mp.tag + " · " : ""}${lane}`, subSize: 8.2,
+        subColor: hot ? "rgba(165,240,255,.9)" : "rgba(158,180,210,.85)",
+        bgFill: "rgba(7,12,20,.8)",
+      });
+
+      /* response panel */
+      const rx = 270, rz = -20;
+      S.box(rx, -4, rz, 136, 8, 90, [16, 24, 36], { edgeAlpha: 0.1 });
+      S.box(rx, 16, rz, 116, 100, 12, [18, 30, 46], { edgeAlpha: 0.3, front: S.shade([18, 30, 46], 1.1) });
+      S.box(rx, 104, rz, 88, 6, 1.4, green, { emis: 0.4, edgeAlpha: 0.4 });
+      const rows = Math.min(5, Math.ceil(Number(st.tokens || 0) / 8));
+      for (let i = 0; i < 5; i++) {
+        const on = i < rows;
+        S.box(rx - 30, 92 - i * 14, rz - 6.4, on ? 52 + ((i * 31) % 44) : 44, 4, 0.9, green, {
+          alpha: on ? 0.58 : 0.12, emis: on ? 0.18 : 0.02, edgeAlpha: 0,
+        });
+      }
+      const status = hot ? "GENERATING" : st.phase === "done" ? "DONE" : "IDLE";
+      S.tag(st.phase === "idle" ? "RESPONSE · IDLE" : "RESPONSE", rx, 146, rz, {
+        size: 11.5, color: S.rgb(green, 0.96),
+        sub: `sse · ${status.toLowerCase()} · ${st.tokens || 0} tok`, subSize: 8.6,
+        subColor: "rgba(150,225,190,.88)", bgFill: "rgba(7,12,20,.8)",
+      });
+
+      S.particles(now, { n: 14, top: 140, alpha: 0.1, x0: -360, x1: 360, z0: -100, z1: 100 });
     }); } catch (e) { console.error("sceneSetActor", e); }
     window.__locoChatMounted = true;
   }
@@ -224,7 +286,7 @@ document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.ke
       window.__locoChatEv = msg;
       window.__locoChatState.model = msg.model || "";
       window.__locoChatState.phase = "done";
-      window.__locoChatPk = { pts: [{ x: 65, y: 10, z: 0 }, { x: 250, y: 10, z: 0 }, { x: 466, y: 10, z: 0 }], seg: 0, segT: 0 };
+      window.__locoChatPk = { t0: performance.now(), rgb: colOf(msg) };
     }
   });
 

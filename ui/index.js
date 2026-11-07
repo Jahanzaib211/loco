@@ -113,12 +113,12 @@ async function loadRegistry(status     )                {
       : `<button class="${loaded ? "danger" : "primary"}" data-act="${loaded ? "unload" : "load"}" data-model="${esc(m.id)}">${loaded ? "Unload" : "Load"}</button>`;
     const editable = m.id !== "loco:auto" && m.id !== "bge-small-en-v1.5";
 
-    return `<div class="card">
-      <div class="row"><h3 style="margin:0">${esc(m.name)}</h3><span class="spacer"></span>${pill}</div>
-      <div class="muted" style="font-size:12px;margin:6px 0">${esc(m.role)}</div>
-      <p style="font-size:12px;color:#b8c2d4">${esc(m.why)}</p>
-      <div class="row" style="margin:10px 0"><span class="tag">ctx ${esc(m.ctx)}</span><span class="tag">${esc(m.tps)} t/s</span><span class="tag">${esc(m.vram)}</span></div>
-      <div class="row">${btn}<button class="cfgToggle" data-toggle="${esc(m.id)}">Configure</button><a class="btn" href="/ui/identities/${encodeURIComponent(m.id.split("/").pop() .split(":")[0])}.md">why / what / style</a></div>
+    return `<div class="card reg-card${loaded ? " is-loaded" : ""}">
+      <div class="reg-head"><h3 title="${esc(m.name)}">${esc(m.name)}</h3>${pill}</div>
+      <div class="reg-role">${esc(m.role)}</div>
+      <p class="reg-why">${esc(m.why)}</p>
+      <div class="row reg-tags"><span class="tag">ctx ${esc(m.ctx)}</span><span class="tag">${esc(m.tps)} t/s</span><span class="tag">${esc(m.vram)}</span></div>
+      <div class="row reg-actions">${btn}${editable ? `<button class="cfgToggle" data-toggle="${esc(m.id)}" aria-expanded="false">Configure</button>` : ""}<a class="btn ghost" href="/ui/identities/${encodeURIComponent(m.id.split("/").pop() .split(":")[0])}.md">Identity card</a></div>
       ${editable ? `<div class="cfgPanel" data-panel="${esc(m.id)}" hidden>
         <div class="cfgGrid">
           <label>-ngl (gpu layers)<input type="number" min="0" max="99" data-f="n-gpu-layers"></label>
@@ -158,6 +158,8 @@ async function loadRegistry(status     )                {
       const panel = document.querySelector(`[data-panel="${CSS.escape(model)}"]`)                      ;
       if (!panel) return;
       panel.hidden = !panel.hidden;
+      el.setAttribute("aria-expanded", String(!panel.hidden));
+      el.classList.toggle("on", !panel.hidden);
       if (panel.hidden) return;
       const cfg = await getCfg();
       const kv = cfg.presets[model] || {};
@@ -214,7 +216,7 @@ function setKpi(sel        , val        )       {
 async function refresh()                {
   const [h, stats, status] = await Promise.all([
     api("/health"),
-    api("/v1/memory/stats"),
+    api("/v1/memory/stats", { method: "POST", body: {} }),
     api("/v1/control/status"),
   ]);
 
@@ -292,6 +294,11 @@ onWs((msg) => {
 
 /* ----------------------------------------------------------------- boot -- */
 document.addEventListener("DOMContentLoaded", () => {
+  /* Paint the measured registry immediately so the diorama is whole before the
+     first /v1/control/status reply; the live feed then refines loaded flags. */
+  sceneRegistry(REGISTRY
+    .filter((m) => m.id !== "loco:auto")
+    .map((m) => ({ id: m.id, short: m.short, vram: m.vramN, loaded: !!m.pinned })));
   sceneBoot();
   refresh();
   setInterval(refresh, 30000);   // safety net; WS is the primary feed

@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Loco — Embeddings</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2336454f%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%23708090%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<script>try{if(localStorage.getItem("loco-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="/ui/app.css">
 </head><body data-active="embed.html">
 <aside class="side">
-  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="currentColor" stroke-width="1.6" opacity=".9"/><circle cx="19" cy="19" r="6.5" stroke="currentColor" stroke-width="1.3" opacity=".6"/><circle cx="27.5" cy="19" r="2.8" stroke="currentColor" stroke-width="1.2" opacity=".42"/><path d="M13.2 19 H24.8" stroke="currentColor" stroke-width="1.1" opacity=".35"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
   <nav class="nav" id="nav"></nav>
   <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
 </aside>
@@ -40,11 +41,37 @@
       <div><b>Compaction verify</b><p class="muted" style="font-size:12px">brief-vs-original cosine sanity check (nightly job, planned)</p></div>
     </div>
   </div>
-</main>
+  <div class="scene-card card" style="margin-top:14px">
+    <div class="scene-head">
+      <h3>live pipeline · 3D</h3>
+      <span class="badge acc">ws streaming</span>
+      <div class="legend">
+        <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>apps</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>embed</span>
+        <span class="lg"><i style="background:#87c5ff;color:#87c5ff"></i>memory</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="pill">vector</span>
+    </div>
+    <canvas id="embedScene" style="width:100%;height:240px;display:block"></canvas>
+  </div>
+  </main>
 <script src="/ui/app.js"></script>
 <script src="/ui/scene.js"></script>
 <script>
 let vecA = null;
+/* Deterministic 384→2 projection: two fixed pseudo-random directions.
+   Johnson–Lindenstrauss keeps dot products (and therefore cosine) usable. */
+function pca2(v) {
+  let x = 0, y = 0;
+  for (let i = 0; i < v.length; i++) {
+    const s1 = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+    const s2 = Math.sin(i * 269.5 + 183.3) * 43758.5453;
+    x += v[i] * ((s1 - Math.floor(s1)) * 2 - 1);
+    y += v[i] * ((s2 - Math.floor(s2)) * 2 - 1);
+  }
+  return [x, y];
+}
 async function embed(text) {
   const r = await api("/v1/embeddings", { method: "POST", body: { input: text } });
   if (!r.ok) throw new Error(r.data?.error?.message || "embed failed");
@@ -73,79 +100,131 @@ $("#embedB").addEventListener("click", async () => {
 });
 </script>
 
-<div class="scene-card card" style="margin-top:14px">
-  <div class="scene-head">
-    <h3>live pipeline · 3D</h3>
-    <span class="badge acc">ws streaming</span>
-    <div class="legend">
-      <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>apps</span>
-      <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>embed</span>
-      <span class="lg"><i style="background:#87c5ff;color:#87c5ff"></i>memory</span>
-    </div>
-    <span class="spacer"></span>
-    <span class="pill">vector</span>
-  </div>
-  <canvas id="embedScene" style="width:100%;height:240px;display:block"></canvas>
-</div>
+
 <script>
-/* embed 3D scene: scope = vector space — A and B plotted, cosine arc between */
-(function(){
+/* embed 3D scene: scope = vector space — two texts become beacons, cosine is the angle */
+(function () {
   window.__locoEmbedState = { a: null, b: null, cos: null, t: 0 };
   window.sceneSetCanvas("embedScene");
-  window.sceneSetActor(function (ctx, now, dt) {
-    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
-    C.clearRect(0, 0, cv ? cv.width : 800, cv ? cv.height : 240);
-    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
-    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
-    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+  window.sceneSetActor(function (act) {
+    const C = act.ctx, w = act.w, h = act.h, now = act.now;
+    if (!C || !w || !h) return;
+    const dpr = window.devicePixelRatio || 1;
+    C.setTransform(dpr, 0, 0, dpr, 0, 0);
+    C.clearRect(0, 0, w, h);
+
     const st = window.__locoEmbedState;
+    const blue = [110, 168, 255], green = [61, 220, 151], purple = [167, 139, 250], amber = [246, 193, 119];
+    const cl = (v) => Math.max(-1.05, Math.min(1.05, Number(v) || 0));
+    const ax = st.a ? cl(st.a[0]) * 195 : null;
+    const az = st.a ? cl(st.a[1]) * 72 : null;
+    const bx = st.b ? cl(st.b[0]) * 195 : null;
+    const bz = st.b ? cl(st.b[1]) * 72 : null;
 
-    /* axes */
-    C.strokeStyle = "rgba(110,168,255,.14)"; C.lineWidth = 1;
-    C.beginPath(); C.moveTo(X(40), Y(60)); C.lineTo(X(760), Y(60)); C.stroke();
-    C.beginPath(); C.moveTo(X(40), Y(60)); C.lineTo(X(40), Y(-120)); C.stroke();
-    C.font = "700 9px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(138,149,173,.75)";
-    C.fillText("384-DIM SPACE (PCA-2 PROJECTION)", X(44), Y(78));
+    const S = window.SceneKit.begin(C, { x0: -440, x1: 440, y0: 0, y1: 130, z0: -110, z1: 110 }, {
+      dw: w, dh: h, ky: 0.4, padX: 16, padTop: 24, padBottom: 16,
+      points: [
+        { x: -390, y: 0, z: -90 }, { x: -390, y: 86, z: 0 },
+        { x: 390, y: 0, z: -90 }, { x: 390, y: 86, z: 0 },
+        { x: 0, y: 138, z: -10 },
+        ...(st.a ? [{ x: ax, y: 100, z: az }] : []),
+        ...(st.b ? [{ x: bx, y: 100, z: bz }] : []),
+      ],
+    });
+    S.bg();
+    S.grid({ x0: -380, x1: 380, z0: -95, z1: 95, step: 40 });
 
-    /* point A */
-    if (st.a) {
-      const ax = X(120 + st.a[0] * 260), ay = Y(60 - st.a[1] * 70);
-      C.beginPath(); C.arc(ax, ay, 8, 0, Math.PI * 2);
-      C.fillStyle = "rgba(110,168,255,.9)"; C.fill();
-      C.fillStyle = "rgba(255,255,255,.9)"; C.beginPath(); C.arc(ax, ay, 3, 0, Math.PI * 2); C.fill();
-      C.font = "700 10px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(110,168,255,.95)";
-      C.fillText("A", ax + 12, ay + 4);
+    /* a field of other vectors: the memory bank, faint on the plane */
+    const hh = (i) => {
+      const v = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+      return v - Math.floor(v);
+    };
+    for (let i = 0; i < 48; i++) {
+      const x = -340 + hh(i) * 680;
+      const z = -82 + hh(i + 71) * 164;
+      S.dot(x, 0.7, z, i % 7 === 0 ? [87, 230, 255] : [96, 132, 176], 0.9, {
+        alpha: i % 7 === 0 ? 0.3 : 0.16,
+      });
     }
-    /* point B */
-    if (st.b) {
-      const bx = X(120 + st.b[0] * 260), by = Y(60 - st.b[1] * 70);
-      C.beginPath(); C.arc(bx, by, 8, 0, Math.PI * 2);
-      C.fillStyle = "rgba(61,220,151,.9)"; C.fill();
-      C.fillStyle = "rgba(255,255,255,.9)"; C.beginPath(); C.arc(bx, by, 3, 0, Math.PI * 2); C.fill();
-      C.font = "700 10px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(61,220,151,.95)";
-      C.fillText("B", bx + 12, by + 4);
+
+    /* projection axes */
+    S.line([{ x: -340, y: 0.6, z: 0 }, { x: 340, y: 0.6, z: 0 }], blue, { alpha: 0.12, width: 1, dash: [3, 7] });
+    S.line([{ x: 0, y: 0.6, z: -88 }, { x: 0, y: 0.6, z: 88 }], blue, { alpha: 0.12, width: 1, dash: [3, 7] });
+    S.dot(0, 0.8, 0, [150, 190, 235], 1.4, { alpha: 0.5 });
+
+    /* a slow cloud of latent points above the plane — the space itself */
+    for (let i = 0; i < 22; i++) {
+      const t = now / 5200 + i * 1.7;
+      const rr = 40 + hh(i + 13) * 160;
+      const yy = 18 + hh(i + 29) * 76;
+      const x = Math.cos(t) * rr;
+      const z = Math.sin(t * 0.8 + i) * 46;
+      S.dot(x, yy, z, i % 5 === 0 ? [87, 230, 255] : [110, 150, 205], 0.9, {
+        alpha: (st.a || st.b) ? 0.09 : 0.2,
+      });
     }
-    /* cosine arc */
-    if (st.a && st.b && st.cos != null) {
-      const ax = 120 + st.a[0] * 260, ay = 60 - st.a[1] * 70;
-      const bx = 120 + st.b[0] * 260, by = 60 - st.b[1] * 70;
-      C.strokeStyle = "rgba(167,139,250,.75)"; C.lineWidth = 2;
-      C.setLineDash([5, 4]);
-      C.beginPath(); C.moveTo(X(ax), Y(ay)); C.lineTo(X(bx), Y(by)); C.stroke();
-      C.setLineDash([]);
-      /* angle arc at A */
-      const ang = Math.acos(Math.max(-1, Math.min(1, st.cos)));
-      C.strokeStyle = "rgba(246,193,119,.8)";
-      C.beginPath();
-      C.arc(X(ax), Y(ay), 34, -Math.atan2(by - ay, bx - ax), -Math.atan2(by - ay, bx - ax) + ang, false);
-      C.stroke();
-      C.font = "700 11px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(246,193,119,.95)";
-      C.fillText("cos " + st.cos.toFixed(4), X(ax) + 40, Y(ay) - 40);
+
+    const beacon = (x, z, rgb, name) => {
+      S.ring(x, 1.2, z, 9, rgb, { alpha: 0.4, width: 1.2 });
+      S.box(x, 0, z, 3.4, 92, 3.4, rgb, { emis: 0.55, edgeAlpha: 0.45, alpha: 0.92 });
+      S.dot(x, 93, z, rgb, 4.6, { alpha: 0.96 });
+      S.label(name, x + 18, 98, z - 8, { size: 11.5, color: S.rgb(rgb, 0.98), align: "left" });
+    };
+
+    /* placeholders: show where A and B will land so the idle scene explains itself */
+    const ghost = (x, z, rgb, name, hint) => {
+      S.ring(x, 1.2, z, 9, rgb, { alpha: 0.22, width: 1, dash: [3, 4] });
+      S.line([{ x, y: 1, z }, { x, y: 70, z }], rgb, { alpha: 0.22, width: 1, dash: [3, 5] });
+      S.label(name, x + 16, 74, z - 6, { size: 11, align: "left", color: S.rgb(rgb, 0.5) });
+      S.label(hint, x + 16, 62, z - 6, { size: 8.2, align: "left", color: "rgba(150,170,200,.5)" });
+    };
+    if (ax == null) ghost(-170, 30, blue, "A", "press Embed A");
+    if (bx == null) ghost(170, -30, green, "B", "press Embed B");
+
+    if (ax != null) {
+      /* ray + base glow */
+      S.line([{ x: 0, y: 1, z: 0 }, { x: ax, y: 1, z: az }], blue, { alpha: 0.24, width: 1.2 });
+      beacon(ax, az, blue, "A");
     }
-    /* idle shimmer so it never looks dead */
-    const pulse = 0.5 + 0.5 * Math.sin(now / 700);
-    C.strokeStyle = "rgba(87,230,255," + (0.08 + pulse * 0.08).toFixed(3) + ")";
-    C.beginPath(); C.arc(X(420), Y(-10), 60 + pulse * 8, 0, Math.PI * 2); C.stroke();
+    if (bx != null) {
+      S.line([{ x: 0, y: 1, z: 0 }, { x: bx, y: 1, z: bz }], green, { alpha: 0.24, width: 1.2 });
+      beacon(bx, bz, green, "B");
+    }
+
+    /* cosine = angle at the origin, drawn as a drafting arc */
+    if (ax != null && bx != null) {
+      const a0 = Math.atan2(az, ax), a1 = Math.atan2(bz, bx);
+      let d = a1 - a0;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      const r = Math.max(26, Math.min(64, Math.hypot(ax, az) * 0.55, Math.hypot(bx, bz) * 0.55));
+      S.line([{ x: ax, y: 2, z: az }, { x: bx, y: 2, z: bz }], purple, { alpha: 0.3, width: 1.1, dash: [5, 5] });
+      S.arc(0, 2, 0, r, a0, a0 + d, purple, { alpha: 0.66, width: 1.8, dash: [4, 4] });
+      S.dot(0, 2, 0, purple, 2.2, { alpha: 0.65 });
+    }
+
+    /* headline readout */
+    const cosTxt = st.cos == null ? "—" : st.cos.toFixed(4);
+    const deg = st.cos == null ? null : (Math.acos(Math.max(-1, Math.min(1, st.cos))) * 180 / Math.PI).toFixed(1);
+    S.tag("COSINE", 0, 132, -10, {
+      size: 12, color: S.rgb(purple, 0.98),
+      sub: st.cos == null ? "awaiting both vectors" : `${cosTxt} · ${deg}° angle`,
+      subSize: 8.6,
+      subColor: st.cos == null ? "rgba(165,185,215,.8)" : "rgba(196,176,255,.95)",
+      bgFill: "rgba(7,12,20,.82)",
+    });
+
+    /* live mapping note, kept small at the back edge */
+    S.label("384-D → 2-D", -380, 96, -92, { size: 9.5, align: "left", color: "rgba(140,165,200,.55)" });
+    S.label("fixed projection · cosine preserved", -380, 84, -92, { size: 8.2, align: "left", color: "rgba(120,145,180,.42)" });
+
+    /* origin pulse while waiting */
+    if (st.cos == null) {
+      const t = (now / 1800) % 1;
+      S.ring(0, 1, 0, 14 + t * 46, [110, 168, 255], { alpha: (1 - t) * 0.22, width: 1.2 });
+    }
+
+    S.particles(now, { n: 12, top: 120, alpha: 0.07, x0: -380, x1: 380, z0: -90, z1: 90 });
   });
 })();
 </script>
