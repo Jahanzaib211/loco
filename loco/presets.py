@@ -1,12 +1,17 @@
-"""Per-model config: /home/jahanzaib/models/presets.ini (llama.cpp router presets)
+"""Per-model config: the llama.cpp router presets file (presets.ini)
 
 Read/write without external deps. The router honors it only when the service
 was installed with --models-preset (see scripts/install-preset-unit.sh).
+
+The path is configurable with LOCO_PRESETS_INI so Loco is not pinned to one
+user's home directory; the default keeps the original location.
 """
+import os
 import re
 from pathlib import Path
 
-PRESETS = Path("/home/jahanzaib/models/presets.ini")
+PRESETS = Path(os.environ.get("LOCO_PRESETS_INI",
+                               "/home/jahanzaib/models/presets.ini"))
 
 _FLAG_DOCS = {
     "n-gpu-layers": "GPU layers to offload (0–99, 99 = all)",

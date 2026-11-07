@@ -172,8 +172,54 @@ function renderNav(active: string): void {
       `<a href="${href}" class="${href.endsWith(active) ? "active" : ""}">${label}</a>`
   ).join("");
 }
+
+/* ------- theme (Modern Minimalist · light default / dark) ----------------
+   The <head> snippet applies the stored choice before first paint; this
+   module only syncs the sidebar toggle and broadcasts the change to any
+   canvas scene listening on the "loco:theme" event. */
+const THEME_KEY = "loco-theme";
+
+function currentTheme(): "light" | "dark" {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function applyTheme(mode: "light" | "dark", persist = true): void {
+  const root = document.documentElement;
+  if (mode === "dark") root.dataset.theme = "dark";
+  else delete root.dataset.theme;
+  if (persist) {
+    try { localStorage.setItem(THEME_KEY, mode); } catch { /* private mode */ }
+  }
+  const btn = document.getElementById("themeToggle");
+  if (btn) {
+    btn.innerHTML =
+      `<span class="tt-ico" aria-hidden="true">${mode === "dark" ? "☾" : "☀"}</span>` +
+      `<span>${mode === "dark" ? "Dark" : "Light"}</span>`;
+    btn.setAttribute("aria-label", `Switch to ${mode === "dark" ? "light" : "dark"} theme`);
+    btn.setAttribute("aria-pressed", String(mode === "dark"));
+  }
+  window.dispatchEvent(new CustomEvent("loco:theme", { detail: { mode } }));
+}
+
+function toggleTheme(): void {
+  applyTheme(currentTheme() === "dark" ? "light" : "dark");
+}
+
+function mountThemeToggle(): void {
+  if (document.getElementById("themeToggle")) return;
+  const side = document.querySelector(".side");
+  if (!side) return;
+  const row = document.createElement("div");
+  row.className = "theme-row";
+  row.innerHTML = '<button id="themeToggle" class="theme-toggle" type="button"></button>';
+  side.insertBefore(row, side.querySelector(".footer"));
+  row.querySelector("button")?.addEventListener("click", toggleTheme);
+  applyTheme(currentTheme(), false);   // sync the label with the pre-paint choice
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   renderNav(document.body.dataset.active || "");
+  mountThemeToggle();
   refreshModelsFromServer();
   /* stamp the running version into every page footer */
   api("/health").then((r) => {

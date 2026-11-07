@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Loco — Memory bank</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2336454f%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%23708090%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<script>try{if(localStorage.getItem("loco-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="/ui/app.css">
 </head><body data-active="memory.html">
 <aside class="side">
-  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="currentColor" stroke-width="1.6" opacity=".9"/><circle cx="19" cy="19" r="6.5" stroke="currentColor" stroke-width="1.3" opacity=".6"/><circle cx="27.5" cy="19" r="2.8" stroke="currentColor" stroke-width="1.2" opacity=".42"/><path d="M13.2 19 H24.8" stroke="currentColor" stroke-width="1.1" opacity=".35"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
   <nav class="nav" id="nav"></nav>
   <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
 </aside>
@@ -84,7 +85,6 @@ decay   30-day half-life (pins bypass)</pre>
       <span class="pill">data pulse</span>
     </div>
     <canvas id="memoryScene" style="width:100%;height:280px;display:block"></canvas>
-    <div class="hud" style="position:absolute;top:8px;right:8px;pointer-events:none;font:9px ui-monospace;color:#8ab4f8">MEM · pulse</div>
   </div>
 </main>
 <script src="/ui/app.js"></script>
@@ -92,7 +92,7 @@ decay   30-day half-life (pins bypass)</pre>
 <script>
 let selected = new Set();
 async function stats() {
-  const r = await api("/v1/memory/stats");
+  const r = await api("/v1/memory/stats", { method: "POST", body: {} });
   if (!r.ok) return;
   $("#sNotes").textContent = fmtNum(r.data.notes);
   $("#sPinned").textContent = fmtNum(r.data.pinned);
@@ -144,7 +144,11 @@ async function search() {
   selected.clear(); $("#selCount").textContent = "0 selected";
   if (!r.ok) { $("#results").innerHTML = '<div class="bad">error: ' + (r.data?.error?.message || r.status) + "</div>"; return; }
   $("#memoryMode").textContent = r.data.memory_mode || "hybrid";
-  if (window.__locoMemState) { window.__locoMemState.beam = 900; }
+  if (window.__locoMemState) {
+    const st = window.__locoMemState;
+    st.beam = 1800; st.results = (r.data.results || []).length;
+    st.mode = r.data.memory_mode || "hybrid";
+  }
   const rows = r.data.results || [];
   $("#results").innerHTML = rows.length ? rows.map(m => `
     <label class="card" style="background:var(--panel2);display:flex;gap:10px;align-items:flex-start;cursor:pointer">
@@ -188,69 +192,130 @@ onWs((msg) => {
 </script>
 
 <script>
-/* memory 3D scene: scope = the vault — notes orbit the db, retrieval beams in */
-(function(){
-  window.__locoMemState = { notes: 0, pinned: 0, pending: 0, beam: 0, beamT: 0 };
+/* memory 3D scene: scope = the vault — notes orbit the SQLite drum, retrieval beams in */
+(function () {
+  window.__locoMemState = { notes: 0, pinned: 0, pending: 0, beam: 0, results: 0, mode: "hybrid" };
   window.sceneSetCanvas("memoryScene");
-  window.sceneSetActor(function (ctx, now, dt) {
-    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
-    C.clearRect(0, 0, cv ? cv.width : 900, cv ? cv.height : 280);
-    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
-    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
-    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+  window.sceneSetActor(function (act) {
+    const C = act.ctx, w = act.w, h = act.h, now = act.now;
+    if (!C || !w || !h) return;
+    const dpr = window.devicePixelRatio || 1;
+    C.setTransform(dpr, 0, 0, dpr, 0, 0);
+    C.clearRect(0, 0, w, h);
+
     const st = window.__locoMemState;
+    const dt = act.dt || 0.016;
+    if (st.beam > 0) st.beam = Math.max(0, st.beam - dt * 1000);
 
-    /* the drum: sqlite + fts5 + 384-dim vectors */
-    const cx = X(150), cy = Y(60);
-    C.fillStyle = "#0f2b22"; C.beginPath(); C.ellipse(cx, cy, 62, 20, 0, 0, Math.PI * 2); C.fill();
-    C.fillStyle = "#143a2d"; C.fillRect(cx - 62, cy - 54, 124, 54);
-    C.fillStyle = "#0f2b22"; C.beginPath(); C.ellipse(cx, cy - 54, 62, 20, 0, 0, Math.PI * 2); C.fill();
-    C.strokeStyle = "rgba(61,220,151,.45)"; C.lineWidth = 1; C.stroke();
-    /* heartbeat rings */
-    const beat = (now % 2600) / 2600;
-    C.strokeStyle = "rgba(61,220,151," + (0.4 * (1 - beat)).toFixed(3) + ")"; C.lineWidth = 2;
-    C.beginPath(); C.ellipse(cx, cy - 54, 62 + beat * 90, 20 + beat * 30, 0, 0, Math.PI * 2); C.stroke();
+    const green = [61, 220, 151], cyan = [87, 230, 255], amber = [246, 193, 119], purple = [167, 139, 250];
+    const cx = 0, cz = 0, drumR = 56, drumH = 94;
 
-    /* orbiting notes */
-    const total = Math.max(1, st.notes);
+    const S = window.SceneKit.begin(C, { x0: -360, x1: 360, y0: 0, y1: 150, z0: -150, z1: 150 }, {
+      dw: w, dh: h, ky: 0.4, padX: 16, padTop: 20, padBottom: 16,
+      points: [
+        { x: -360, y: 0, z: -130 }, { x: -360, y: 96, z: -50 },
+        { x: 0, y: 140, z: 0 }, { x: 360, y: 74, z: 30 },
+        { x: 360, y: 0, z: 120 },
+        { x: -180, y: 20, z: 150 }, { x: 180, y: 20, z: 150 },
+        { x: -180, y: 20, z: -150 }, { x: 180, y: 20, z: -150 },
+      ],
+    });
+    S.bg();
+    S.grid({ x0: -340, x1: 340, z0: -120, z1: 120, step: 40 });
+
+    /* orbit tracks: three broken arcs, not full rings, so the drum stays clean */
+    [90, 115, 140].forEach((r, ri) => {
+      for (let s = 0; s < 3; s++) {
+        const a0 = now / (9000 + ri * 2200) + s * 2.1 + ri * 0.7;
+        S.arc(cx, 1.2, cz, r, a0, a0 + 1.15, green, { alpha: 0.09 + ri * 0.015, width: 1 });
+      }
+    });
+
+    /* ---- the vault drum: sqlite + fts5 + 384-dim vectors ----------------- */
+    S.box(cx, -4, cz, 150, 8, 128, [16, 24, 36], { edgeAlpha: 0.1 });
+    S.cyl(cx, 0, cz, drumR, drumH, [26, 78, 62], { emis: 0.1, edgeAlpha: 0.3 });
+    [24, 48, 72].forEach((y) => S.ring(cx, y, cz, drumR, green, { alpha: 0.17, width: 1 }));
+    S.ring(cx, drumH, cz, drumR, green, { alpha: 0.5, width: 1.4 });
+    S.dot(cx, drumH + 2, cz, green, 3, { alpha: 0.85 });
+    S.vlabel("SQLITE + FTS5", cx, 46, cz - drumR - 0.6, {
+      size: 8.5, color: "rgba(138,228,188,.8)",
+    });
+    /* ---- orbiting notes -------------------------------------------------- */
+    const total = Math.max(0, Number(st.notes || 0));
     const shown = Math.min(18, total);
-    for (let i = 0; i < shown; i++) {
-      const a = now / 2400 + (i / shown) * Math.PI * 2;
-      const rx = 150 + Math.cos(a) * (110 + (i % 3) * 26);
-      const ry = cy - 40 + Math.sin(a) * (34 + (i % 4) * 8);
-      const pinned = i < st.pinned;
-      C.beginPath(); C.arc(X(rx), Y(ry), pinned ? 4.4 : 3, 0, Math.PI * 2);
-      C.fillStyle = pinned ? "rgba(246,193,119,.95)" : "rgba(87,230,255,.75)";
-      C.fill();
+    if (shown > 0) {
+      for (let i = 0; i < shown; i++) {
+        const a = now / 3200 + i * 2.39996;
+        const rad = 90 + (i % 3) * 25;
+        const x = cx + Math.cos(a) * rad;
+        const z = cz + Math.sin(a) * rad;
+        const y = 16 + (i % 5) * 10 + Math.sin(now / 800 + i) * 2.5;
+        const pinned = i < Number(st.pinned || 0);
+        const sz = pinned ? 7.5 : 5.6;
+        S.box(x, y, z, sz, sz, sz, pinned ? amber : cyan, {
+          emis: pinned ? 0.45 : 0.28, edgeAlpha: 0.42, alpha: 0.95,
+        });
+        if (pinned) S.ring(x, y - sz / 2, z, 7, amber, { alpha: 0.2, width: 1 });
+      }
+    } else {
+      for (let i = 0; i < 6; i++) {
+        const a = i * 2.39996 + 0.4;
+        const rad = 90 + (i % 3) * 25;
+        S.dot(cx + Math.cos(a) * rad, 18 + (i % 4) * 12, cz + Math.sin(a) * rad, [96, 132, 176], 1.4, { alpha: 0.14 });
+      }
     }
 
-    /* retrieval beam when a search lands */
-    if (st.beam > 0) {
-      st.beam -= dt;
-      C.strokeStyle = "rgba(167,139,250," + Math.max(0, st.beam / 900).toFixed(3) + ")";
-      C.lineWidth = 2;
-      C.beginPath(); C.moveTo(X(620), Y(20)); C.lineTo(cx, cy - 54); C.stroke();
-      C.fillStyle = "rgba(167,139,250,.8)";
-      C.font = "700 10px ui-monospace, Menlo, monospace"; C.textAlign = "right";
-      C.fillText("RETRIEVAL", X(616), Y(14));
-      C.textAlign = "left";
+    /* ---- query beacon (left) + retrieval beam ---------------------------- */
+    const qx = -270, qz = -50;
+    const hot = st.beam > 0;
+    const BEAM_MS = 1800;
+    const k = hot ? 1 - st.beam / BEAM_MS : 0;
+    S.box(qx, -4, qz, 96, 8, 84, [16, 24, 36], { edgeAlpha: 0.1 });
+    S.box(qx, 0, qz, 3.4, 64, 3.4, cyan, { emis: 0.5, edgeAlpha: 0.42, alpha: 0.92 });
+    S.ring(qx, 1.2, qz, 10, cyan, { alpha: 0.32, width: 1.2 });
+    S.dot(qx, 66, qz, cyan, 3.6, { alpha: hot ? 1 : 0.6 });
+    S.tag("QUERY", qx, 86, qz, {
+      size: 11, color: S.rgb(cyan, 0.96),
+      sub: hot ? `${st.results || 0} hits · ${st.mode || "hybrid"}` : "semantic + fts5",
+      subSize: 8.2, subColor: hot ? "rgba(180,240,255,.92)" : "rgba(150,180,215,.8)",
+      bgFill: "rgba(7,12,20,.8)",
+    });
+    if (hot) {
+      const from = { x: qx, y: 66, z: qz };
+      const to = { x: cx, y: drumH + 4, z: cz };
+      S.beam(from, to, purple, { alpha: 0.28 + 0.34 * (1 - k), width: 2.4, dash: [7, 6] });
+      for (let j = 0; j < 3; j++) {
+        S.flow([from, to], (now / 1100 + j * 0.23) % 1, purple, { trail: 5, spread: 0.09, r: j ? 2.5 : 3.2, alpha: j ? 0.55 : 0.9 });
+      }
+      S.ring(cx, drumH + 2, cz, 16 + k * 74, purple, { alpha: (1 - k) * 0.5, width: 1.5 });
     }
 
-    /* counters */
-    C.font = "700 10px ui-monospace, Menlo, monospace"; C.textAlign = "left";
-    C.fillStyle = "rgba(138,149,173,.9)";
-    C.fillText("VAULT · SQLITE + FTS5 + 384D", X(30), Y(150));
-    C.fillStyle = "rgba(61,220,151,.95)";
-    C.fillText(st.notes + " notes · " + st.pinned + " pinned · " + st.pending + " pending", X(30), Y(168));
-  });
-  onWs(function (msg) {
-    if (msg.type === "memory") {
-      const st = window.__locoMemState;
-      if (msg.action === "add") st.notes++;
-      if (msg.action === "proposal-approved") st.notes++;
-      if (msg.action === "proposal") st.pending++;
-      if (msg.action === "proposal-rejected" || msg.action === "proposal-approved") st.pending = Math.max(0, st.pending - 1);
+    /* ---- proposals tray (right): amber crates waiting for approval ------- */
+    const px = 280, pz = 30;
+    const pend = Math.min(3, Math.max(0, Number(st.pending || 0)));
+    S.box(px, -4, pz, 96, 8, 84, [16, 24, 36], { edgeAlpha: 0.1 });
+    for (let i = 0; i < pend; i++) {
+      S.box(px, 2 + i * 8.4, pz, 30, 7, 30, amber, {
+        emis: 0.32 + i * 0.05, edgeAlpha: 0.36, alpha: 0.95,
+      });
     }
+    if (!pend) S.box(px, 1, pz, 32, 2, 32, [40, 48, 64], { edgeAlpha: 0.16 });
+    S.tag("PROPOSALS", px, 56, pz, {
+      size: 10.5, color: pend ? S.rgb(amber, 0.96) : "rgba(158,176,200,.85)",
+      sub: pend ? `${st.pending} pending` : "queue clear",
+      subSize: 8.2,
+      subColor: pend ? "rgba(250,215,160,.9)" : "rgba(150,175,205,.7)",
+      bgFill: "rgba(7,12,20,.8)",
+    });
+
+    /* ---- vault headline -------------------------------------------------- */
+    S.tag("MEMORY", cx, 124, cz, {
+      size: 12, color: S.rgb(green, 0.97),
+      sub: `${total} notes · ${st.pinned || 0} pinned`, subSize: 8.6,
+      subColor: "rgba(150,225,190,.9)", bgFill: "rgba(7,12,20,.82)",
+    });
+
+    S.particles(now, { n: 14, top: 140, alpha: 0.08, x0: -360, x1: 360, z0: -130, z1: 130 });
   });
 })();
 </script>

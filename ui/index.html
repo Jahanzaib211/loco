@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Loco — Lab Overview</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2336454f%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%23708090%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<script>try{if(localStorage.getItem("loco-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="/ui/app.css">
 </head><body data-active="index.html">
 <aside class="side">
-  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="currentColor" stroke-width="1.6" opacity=".9"/><circle cx="19" cy="19" r="6.5" stroke="currentColor" stroke-width="1.3" opacity=".6"/><circle cx="27.5" cy="19" r="2.8" stroke="currentColor" stroke-width="1.2" opacity=".42"/><path d="M13.2 19 H24.8" stroke="currentColor" stroke-width="1.1" opacity=".35"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
   <nav class="nav" id="nav"></nav>
   <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
 </aside>
@@ -46,14 +47,11 @@
       <div class="hud tl">
         <span class="hud-chip">routes <b id="hudRoutes">0</b></span>
         <span class="hud-chip">ws events <b id="hudEvents">0</b></span>
-        <span class="hud-chip grn">packets in flight <b id="hudFly">live</b></span>
+        <span class="hud-chip grn">packets <b id="hudFly">live</b></span>
       </div>
-      <div class="hud tr">
-        <span class="hud-chip">apps → loco → gate → brain → db</span>
-        <span class="hud-chip amb">towers = brains · height = vram</span>
-      </div>
-      <div class="hud bl">
-        <span class="hud-chip">mouse = parallax · idle heartbeat = pipeline pulse</span>
+      <div class="hud br">
+        <span class="hud-chip amb">towers = brains · height = VRAM</span>
+        <span class="hud-chip">move the mouse to tilt · idle pulse = heartbeat</span>
       </div>
     </div>
   </div>

@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Loco — Agentic tools</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2336454f%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%23708090%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<script>try{if(localStorage.getItem("loco-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="/ui/app.css">
 </head><body data-active="tools.html">
 <aside class="side">
-  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="currentColor" stroke-width="1.6" opacity=".9"/><circle cx="19" cy="19" r="6.5" stroke="currentColor" stroke-width="1.3" opacity=".6"/><circle cx="27.5" cy="19" r="2.8" stroke="currentColor" stroke-width="1.2" opacity=".42"/><path d="M13.2 19 H24.8" stroke="currentColor" stroke-width="1.1" opacity=".35"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
   <nav class="nav" id="nav"></nav>
   <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
 </aside>
@@ -42,6 +43,22 @@
       <div class="row" style="margin-top:9px"><button class="primary" id="calcBtn">Calculate</button><span class="muted" style="font-size:11px" id="calcStat"></span></div>
       <pre id="calcResult" class="log" style="margin-top:9px;min-height:74px">…</pre>
     </div>
+  </div>
+
+  <div class="scene-card card" style="margin-top:14px">
+    <div class="scene-head">
+      <h3>agent plane · 3D</h3>
+      <div class="legend">
+        <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>agent</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>loco</span>
+        <span class="lg"><i style="background:#a78bfa;color:#a78bfa"></i>summarize</span>
+        <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>search</span>
+        <span class="lg"><i style="background:#3ddc97;color:#3ddc97"></i>calculate</span>
+      </div>
+      <span class="spacer"></span>
+      <span class="pill">pedestal height = calls this session</span>
+    </div>
+    <canvas id="toolsScene" style="width:100%;height:260px;display:block"></canvas>
   </div>
 
   <div class="sec">tool registry <span class="n">GET /v1/tools · schemas the models see</span></div>
@@ -96,84 +113,99 @@ api("/v1/tools").then(r => {
 });
 </script>
 
-<div class="scene-card card" style="margin-top:14px">
-  <div class="scene-head">
-    <h3>live pipeline · 3D</h3>
-    <span class="badge acc">ws streaming</span>
-    <div class="legend">
-      <span class="lg"><i style="background:#6ea8ff;color:#6ea8ff"></i>apps</span>
-      <span class="lg"><i style="background:#57e6ff;color:#57e6ff"></i>loco</span>
-      <span class="lg"><i style="background:#87c5ff;color:#87c5ff"></i>tools</span>
-      <span class="lg"><i style="background:#61d1b5;color:#61d1b5"></i>memory</span>
-    </div>
-    <span class="spacer"></span>
-    <span class="pill">agent plane</span>
-  </div>
-  <canvas id="toolsScene" style="width:100%;height:240px;display:block"></canvas>
-</div>
 <script>
-/* tools 3D scene: scope = the tool registry — one cube per tool, calls pulse them */
-(function(){
+/* tools 3D scene: scope = the agent plane. An agent calls through Loco into
+   one of three local tools; each pedestal grows with its call count and the
+   last call replays as a packet along the wire. */
+(function () {
   window.__locoToolState = { calls: {}, last: null, t: 0 };
   const TOOLS = [
-    { name: "summarize", col: [167,139,250] },
-    { name: "search",    col: [87,230,255] },
-    { name: "calculate", col: [61,220,151] },
+    { name: "summarize", col: [167, 139, 250], x: 60 },
+    { name: "search",    col: [87, 230, 255],  x: 210 },
+    { name: "calculate", col: [61, 220, 151],  x: 360 },
   ];
+  const AGENT = { x: -330, z: -10 }, LOCO = { x: -140, z: 10 }, TZ = 30;
+
   window.sceneSetCanvas("toolsScene");
-  window.sceneSetActor(function (ctx, now, dt) {
-    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
-    C.clearRect(0, 0, cv ? cv.width : 800, cv ? cv.height : 240);
-    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
-    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
-    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+  window.sceneSetActor(function (act) {
+    const C = act.ctx, w = act.w, h = act.h, now = act.now;
+    if (!C || !w || !h) return;
+    const dpr = window.devicePixelRatio || 1;
+    C.setTransform(dpr, 0, 0, dpr, 0, 0);
+    C.clearRect(0, 0, w, h);
     const st = window.__locoToolState;
+    const blue = [110, 168, 255], cyan = [87, 230, 255];
+    const hOf = (n) => 26 + Math.min(70, Math.log2(1 + (st.calls[n] || 0)) * 18);
 
-    /* agent plane above, tool cubes below */
-    C.font = "700 9px ui-monospace, Menlo, monospace"; C.textAlign = "left";
-    C.fillStyle = "rgba(138,149,173,.7)";
-    C.fillText("AGENT PLANE · CALLS IN", X(30), Y(-90));
-    C.fillText("TOOL REGISTRY · LOCAL, DETERMINISTIC", X(30), Y(120));
-
-    /* agent node */
-    C.fillStyle = "rgba(110,168,255,.2)"; C.strokeStyle = "rgba(110,168,255,.6)"; C.lineWidth = 1;
-    C.beginPath(); C.arc(X(90), Y(-60), 20, 0, Math.PI * 2); C.fill(); C.stroke();
-    C.font = "700 9px ui-monospace, Menlo, monospace"; C.fillStyle = "rgba(169,198,255,.95)";
-    C.textAlign = "center"; C.fillText("AGENT", X(90), Y(-22)); C.textAlign = "left";
-
-    /* one cube per tool */
-    TOOLS.forEach((t, i) => {
-      const tx = 300 + i * 180, ty = 40;
-      const hot = st.last === t.name;
-      const bump = hot ? 1.18 : 1;
-      const s = 42 * bump;
-      C.fillStyle = hot ? "rgba(" + t.col.join(",") + ",.55)" : "rgba(" + t.col.join(",") + ",.16)";
-      C.strokeStyle = "rgba(" + t.col.join(",") + ",.75)"; C.lineWidth = 1.4;
-      C.beginPath(); C.rect(X(tx - s / 2), Y(ty - s / 2), s, s); C.fill(); C.stroke();
-      C.font = "700 10px ui-monospace, Menlo, monospace";
-      C.fillStyle = "rgba(" + t.col.join(",") + ",.95)"; C.textAlign = "center";
-      C.fillText(t.name.toUpperCase(), X(tx), Y(ty + s / 2 + 16));
-      /* call count */
-      C.fillStyle = "rgba(138,149,173,.8)"; C.font = "700 9px ui-monospace, Menlo, monospace";
-      C.fillText((st.calls[t.name] || 0) + " calls", X(tx), Y(ty + s / 2 + 30));
-      /* wire from agent */
-      C.strokeStyle = "rgba(110,168,255,.18)"; C.lineWidth = 1.5;
-      C.beginPath(); C.moveTo(X(110), Y(-46)); C.lineTo(X(tx), Y(ty - s / 2)); C.stroke();
+    const S = window.SceneKit.begin(C, { x0: -420, x1: 440, y0: 0, y1: 140, z0: -90, z1: 110 }, {
+      dw: w, dh: h, ky: 0.42, padX: 18, padTop: 26, padBottom: 18,
+      points: [
+        { x: AGENT.x - 60, y: 0, z: AGENT.z - 50 }, { x: AGENT.x, y: 120, z: AGENT.z },
+        { x: 420, y: 0, z: TZ - 50 }, { x: 420, y: 0, z: TZ + 50 },
+        { x: 360, y: 150, z: TZ },
+      ],
     });
-    C.textAlign = "left";
+    S.bg();
+    S.grid({ x0: -410, x1: 430, z0: -80, z1: 100, step: 40 });
+
+    /* agent: a stacked client block */
+    S.box(AGENT.x, -4, AGENT.z, 110, 8, 90, [16, 24, 36], { edgeAlpha: 0.1 });
+    S.box(AGENT.x, 0, AGENT.z, 70, 54, 58, [38, 52, 78], { edgeAlpha: 0.24 });
+    S.box(AGENT.x, 54, AGENT.z, 74, 5, 62, blue, { emis: 0.35, edgeAlpha: 0.45 });
+    S.tag("AGENT", AGENT.x, 96, AGENT.z, { size: 11.5, color: S.rgb(blue, 0.96), sub: "plans · calls tools", subSize: 8.4, bgFill: "rgba(7,12,20,.8)" });
+
+    /* loco: thin gateway that routes, never executes */
+    S.box(LOCO.x, -4, LOCO.z, 90, 8, 80, [16, 24, 36], { edgeAlpha: 0.1 });
+    S.box(LOCO.x - 24, 0, LOCO.z, 8, 62, 46, [44, 62, 92], { edgeAlpha: 0.28 });
+    S.box(LOCO.x + 24, 0, LOCO.z, 8, 62, 46, [44, 62, 92], { edgeAlpha: 0.28 });
+    S.box(LOCO.x, 62, LOCO.z, 64, 6, 50, cyan, { emis: 0.45, edgeAlpha: 0.5 });
+    S.tag("LOCO :8200", LOCO.x, 100, LOCO.z, { size: 11, color: S.rgb(cyan, 0.96), sub: "route · log", subSize: 8.2, bgFill: "rgba(7,12,20,.8)" });
+
+    /* tool bed */
+    S.box(210, -4, TZ, 420, 8, 110, [16, 24, 36], { edgeAlpha: 0.1 });
+
+    const hotAge = now - (st.t || -1e9);
+    for (const t of TOOLS) {
+      const hh = hOf(t.name);
+      const hot = st.last === t.name && hotAge < 1400;
+      const k = hot ? 1 - hotAge / 1400 : 0;
+      /* wire from the gateway to the tool */
+      S.line([{ x: LOCO.x, y: 2, z: LOCO.z }, { x: t.x, y: 2, z: TZ }], t.col, { alpha: hot ? 0.5 : 0.16, width: 1.2, dash: [4, 6] });
+      S.box(t.x, 0, TZ, 62, hh, 62, [30, 42, 62], { edgeAlpha: 0.22, emis: 0.04 + 0.3 * k });
+      S.box(t.x, hh, TZ, 66, 6, 66, t.col, { emis: 0.25 + 0.6 * k, edgeAlpha: 0.5, alpha: 0.85 + 0.15 * k });
+      if (hot) S.ring(t.x, hh + 7, TZ, 36 + 30 * (1 - k), t.col, { alpha: 0.5 * k, width: 1.4 });
+      S.tag(t.name.toUpperCase(), t.x, hh + 34, TZ, {
+        size: 10.5, color: S.rgb(t.col, 0.98),
+        sub: (st.calls[t.name] || 0) + " calls", subSize: 8.2, bgFill: "rgba(7,12,20,.8)",
+      });
+    }
+
+    /* the last call replays as a packet: agent → loco → tool */
+    const last = TOOLS.find((t) => t.name === st.last);
+    if (last && hotAge < 1400) {
+      S.flow([{ x: AGENT.x, y: 58, z: AGENT.z }, { x: LOCO.x, y: 66, z: LOCO.z }, { x: last.x, y: hOf(last.name) + 4, z: TZ }],
+        hotAge / 1100, last.col, { loop: false, r: 4, trail: 8 });
+    } else {
+      /* idle: a faint heartbeat on the agent → loco link */
+      S.flow([{ x: AGENT.x, y: 58, z: AGENT.z }, { x: LOCO.x, y: 66, z: LOCO.z }], (now / 2600) % 1, blue, { r: 2.6, alpha: 0.45 });
+    }
+    S.particles(now, { n: 14, top: 130, alpha: 0.08, x0: -400, x1: 420, z0: -80, z1: 100 });
   });
 
   function bump(tool) {
     const st = window.__locoToolState;
     st.last = tool;
+    st.t = performance.now();
     st.calls[tool] = (st.calls[tool] || 0) + 1;
   }
   window.__locoToolBump = bump;
-  /* every tool call is logged to route_log → the ws feed carries it */
+  /* calls made from other clients arrive on the ws feed */
   onWs(function (msg) {
     if (msg.type === "route" && msg.action && String(msg.action).startsWith("tool")) {
-      const tool = String(msg.action).replace(/^tool-?/, "");
-      if (window.__locoToolState) window.__locoToolState.last = tool;
+      /* highlight only: calls from this page were already counted by run() */
+      const st = window.__locoToolState;
+      st.last = String(msg.action).replace(/^tool-?/, "");
+      st.t = performance.now();
     }
   });
 })();

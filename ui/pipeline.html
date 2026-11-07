@@ -3,18 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Loco — Pipeline &amp; doctrine</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2257e6ff%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%226ea8ff%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<title>Loco — Pipeline &amp; identity</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 38 38%22%3E%3Cpath d=%22M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z%22 stroke=%2336454f%22 stroke-width=%221.6%22/%3E%3Ccircle cx=%2219%22 cy=%2219%22 r=%226.5%22 stroke=%23708090%22 stroke-width=%221.3%22/%3E%3C/svg%3E">
+<script>try{if(localStorage.getItem("loco-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script>
 <link rel="stylesheet" href="/ui/app.css">
 </head><body data-active="pipeline.html">
 <aside class="side">
-  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="#57e6ff" stroke-width="1.6" fill="rgba(87,230,255,0.05)"/><circle cx="19" cy="19" r="6.5" stroke="#6ea8ff" stroke-width="1.3" fill="rgba(110,168,255,0.08)"/><circle cx="27.5" cy="19" r="2.8" stroke="#3ddc97" stroke-width="1.2" fill="rgba(61,220,151,0.1)"/><path d="M13.2 19 H24.8" stroke="#8ab4f8" stroke-width="1.1" opacity="0.55"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
+  <div class="brand"><div class="logo" style="display:grid;place-items:center"><svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Loco"><path d="M19 2 L34 10.5 V27.5 L19 36 L4 27.5 V10.5 Z" stroke="currentColor" stroke-width="1.6" opacity=".9"/><circle cx="19" cy="19" r="6.5" stroke="currentColor" stroke-width="1.3" opacity=".6"/><circle cx="27.5" cy="19" r="2.8" stroke="currentColor" stroke-width="1.2" opacity=".42"/><path d="M13.2 19 H24.8" stroke="currentColor" stroke-width="1.1" opacity=".35"/></svg></div><div><b>Loco</b><small>local inference lab</small></div></div>
   <nav class="nav" id="nav"></nav>
   <div class="footer">one endpoint · <span class="tag">:8200</span><br>nothing leaves this machine</div>
 </aside>
 <main class="main">
   <div class="top">
-    <div><h1>Pipeline &amp; doctrine</h1><div class="sub">why it's built this way — every claim measured on this rig</div></div>
+    <div><h1>Pipeline &amp; identity</h1><div class="sub">why it's built this way — every claim measured on this rig</div></div>
     <span class="pill"><span class="dot live-dot"></span> <span id="liveTxt">live · ws</span></span>
   </div>
 
@@ -52,9 +53,6 @@
     </div>
     <div class="scene-stage" style="position:relative">
       <canvas id="pipelineScene" style="width:100%;height:320px;display:block"></canvas>
-      <div class="hud" style="position:absolute;top:10px;left:10px;pointer-events:none;font:10px ui-monospace;color:var(--dim)">
-        📡 → 🧠 → 💾
-      </div>
     </div>
   </div>
 
@@ -81,7 +79,8 @@
     <table class="table">
       <thead><tr><th>model</th><th>role (why it holds the slot)</th><th>ctx</th><th>t/s</th></tr></thead>
       <tbody>
-        <tr><td>nemotron-3.5-bolt-e4b · <b>Bolt</b></td><td><b>chain leader</b> — 6/8 role · 6/10 tool; first in every auto chain</td><td>32k</td><td>71</td></tr>
+        <tr><td>hermes-4-14b-iq4_xs · <b>Hermes</b></td><td><b>chain leader</b> — 6/8 role · 8/10 tool (best on rig); first in every auto chain since 2026-11-07</td><td>16k</td><td>37</td></tr>
+        <tr><td>nemotron-3.5-bolt-e4b · <b>Bolt</b></td><td>fast fallback lane — 6/8 role · 6/10 tool; prior chain leader, faster and lighter than Hermes</td><td>32k</td><td>71</td></tr>
         <tr><td>ornith-1.5-9b · <b>Orbit</b></td><td>second lane · compaction first — 5/8 · 6/10</td><td>65k</td><td>54</td></tr>
         <tr><td>lfm3-1.7b · <b>Sparrow</b></td><td>fast third fallback — 3/8 · 5/10, fastest tokens (155 t/s)</td><td>131k</td><td>155</td></tr>
         <tr><td>Underdog-Saluki-27B-1.0-IQ2-mix · <b>Candidate</b></td><td><b>best role score</b> — 7/8 · 6/10 tie; slowest (23 t/s), 8.7 GB → explicit only</td><td>16k</td><td>23</td></tr>
@@ -97,15 +96,15 @@
 
   <div class="card" style="margin-top:14px">
     <h3>Tools &amp; MCP — separate plane, on purpose</h3>
-    <pre style="font-size:12px">┌─ model plane (Loco :8200) ─────────────────────────────┐
-│  routes only · never executes tools · never touches net │
-│  local GGUF stack / managed backend pass `tools` through untouched      │
-└───────────────┬────────────────────────────────────────┘
+    <pre style="font-size:12px">┌─ model plane (Loco :8200) ─────────────────────────────────┐
+│  routes only · never executes tools · never touches net    │
+│  local GGUF stack / managed backend pass `tools` through   │
+└───────────────┬────────────────────────────────────────────┘
                 ▼
-┌─ agent plane (your agents) ─────────────────────────────┐
-│  tools · MCP servers · skills · planning loop          │
-│  tool_choice enforcement lives HERE, not in the router │
-└────────────────────────────────────────────────────────┘</pre>
+┌─ agent plane (your agents) ────────────────────────────────┐
+│  tools · MCP servers · skills · planning loop              │
+│  tool_choice enforcement lives HERE, not in the router     │
+└────────────────────────────────────────────────────────────┘</pre>
     <p class="muted" style="font-size:12px">this is the whole point of “support agentic workflows”: Loco guarantees any agent <em>any</em> brain, deterministically, without bargaining with an inference stack. Agents wire MCP on top; Loco stays a clean, dumb, fast traffic cop.</p>
   </div>
 
@@ -123,55 +122,65 @@
 <script src="/ui/app.js"></script>
 <script src="/ui/scene.js"></script>
 <script>
-/* pipeline 3D scene: scope = the doctrine lifecycle, staged in depth */
-(function(){
+/* pipeline 3D scene: the seven lifecycle stages as stations on one runway.
+   A request packet walks the lane; the station it is in lights up. */
+(function () {
   const STAGES = [
-    { n: "1", label: "apps",      col: [110,168,255], d: 0 },
-    { n: "2", label: "parse",     col: [87,230,255],  d: 1 },
-    { n: "3", label: "classify",  col: [135,197,255], d: 2 },
-    { n: "4", label: "vram gate", col: [246,193,117], d: 3 },
-    { n: "5", label: "backend",   col: [61,220,151],  d: 4 },
-    { n: "6", label: "respond",   col: [87,230,255],  d: 5 },
-    { n: "7", label: "memory",    col: [167,139,250], d: 6 },
+    { n: "1", label: "apps",      sub: "any client",      col: [110, 168, 255], h: 34 },
+    { n: "2", label: "parse",     sub: "resolve model",   col: [87, 230, 255],  h: 40 },
+    { n: "3", label: "classify",  sub: "regex → tag",     col: [135, 197, 255], h: 46 },
+    { n: "4", label: "vram gate", sub: "evict · or 503",  col: [246, 193, 117], h: 56 },
+    { n: "5", label: "backend",   sub: ":8080 · :11434",  col: [61, 220, 151],  h: 72 },
+    { n: "6", label: "respond",   sub: "sse · buffered",  col: [87, 230, 255],  h: 50 },
+    { n: "7", label: "memory",    sub: "async · embed",   col: [167, 139, 250], h: 42 },
   ];
-  window.sceneSetCanvas("pipelineScene");
-  window.sceneSetActor(function (ctx, now, dt) {
-    const C = ctx.ctx, cv = ctx.cv, w = ctx.w, h = ctx.h;
-    C.clearRect(0, 0, cv ? cv.width : 900, cv ? cv.height : 320);
-    const fit = ctx.fitTransform(C, w, h, window.devicePixelRatio || 1);
-    const ox = fit.ox, oy = fit.oy, sc = fit.sc;
-    const X = (x) => ox + x * sc, Y = (y) => oy + y * sc;
+  const X0 = -420, DX = 140, Z = 0;
+  const xs = STAGES.map((_, i) => X0 + i * DX);
+  const lane = STAGES.map((s, i) => ({ x: xs[i], y: s.h + 6, z: Z }));
+  const CYCLE = 5600;
 
-    /* the seven stages, laid out as a diagonal runway into depth */
-    STAGES.forEach((s, i) => {
-      const bx = 40 + i * 118, by = 60 + i * 14;
-      const hot = (Math.floor(now / 900) % 7) === i;
-      const h = 34 + s.d * 7;
-      C.fillStyle = hot ? "rgba(" + s.col.join(",") + ",.55)" : "rgba(" + s.col.join(",") + ",.16)";
-      C.strokeStyle = "rgba(" + s.col.join(",") + "," + (hot ? ".9" : ".5") + ")";
-      C.lineWidth = hot ? 1.8 : 1;
-      C.beginPath(); C.rect(X(bx), Y(by - h), 78, h); C.fill(); C.stroke();
-      /* stage number badge */
-      C.beginPath(); C.arc(X(bx + 12), Y(by - h - 12), 9, 0, Math.PI * 2);
-      C.fillStyle = "rgba(" + s.col.join(",") + ",.85)"; C.fill();
-      C.font = "700 9px ui-monospace, Menlo, monospace"; C.fillStyle = "#08101c";
-      C.textAlign = "center"; C.fillText(s.n, X(bx + 12), Y(by - h - 9));
-      /* label */
-      C.font = "700 10px ui-monospace, Menlo, monospace";
-      C.fillStyle = "rgba(" + s.col.join(",") + ",.95)";
-      C.fillText(s.label.toUpperCase(), X(bx + 39), Y(by + 14));
-      /* connector */
-      if (i < STAGES.length - 1) {
-        C.strokeStyle = "rgba(110,168,255,.22)"; C.lineWidth = 1.6;
-        C.beginPath(); C.moveTo(X(bx + 78), Y(by - h + 8)); C.lineTo(X(bx + 118), Y(by + 14 - (34 + (s.d + 1) * 7) + 8)); C.stroke();
-      }
+  window.sceneSetCanvas("pipelineScene");
+  window.sceneSetActor(function (act) {
+    const C = act.ctx, w = act.w, h = act.h, now = act.now;
+    if (!C || !w || !h) return;
+    const dpr = window.devicePixelRatio || 1;
+    C.setTransform(dpr, 0, 0, dpr, 0, 0);
+    C.clearRect(0, 0, w, h);
+
+    const S = window.SceneKit.begin(C, { x0: -480, x1: 480, y0: 0, y1: 120, z0: -70, z1: 70 }, {
+      dw: w, dh: h, ky: 0.4, padX: 20, padTop: 30, padBottom: 22,
+      points: [
+        { x: X0 - 50, y: 0, z: Z - 40 }, { x: xs[6] + 50, y: 0, z: Z - 40 },
+        { x: X0 - 50, y: 0, z: Z + 40 }, { x: xs[6] + 50, y: 0, z: Z + 40 },
+        { x: xs[4], y: 130, z: Z },
+      ],
     });
-    C.textAlign = "left";
-    C.font = "700 10px ui-monospace, Menlo, monospace";
-    C.fillStyle = "rgba(138,149,173,.85)";
-    C.fillText("REQUEST LIFECYCLE · 7 STAGES · ONE LANE", X(40), Y(-70));
-    C.fillStyle = "rgba(138,149,173,.55)"; C.font = "700 9px ui-monospace, Menlo, monospace";
-    C.fillText("stage highlight sweeps the path · every stage is local", X(40), Y(-52));
+    S.bg();
+    S.grid({ x0: -480, x1: 480, z0: -60, z1: 60, step: 40 });
+
+    const t = (now % CYCLE) / CYCLE;
+    const active = Math.min(6, Math.floor(t * 7));
+
+    /* runway under the stations */
+    S.box(0, -4, Z, xs[6] - X0 + 110, 6, 84, [16, 24, 36], { edgeAlpha: 0.1 });
+    S.line([{ x: X0, y: 1, z: Z - 30 }, { x: xs[6], y: 1, z: Z - 30 }], [110, 168, 255], { alpha: 0.18, width: 1, dash: [4, 6] });
+
+    STAGES.forEach((s, i) => {
+      const hot = i === active;
+      S.box(xs[i], 0, Z, 64, s.h, 54, hot ? [44, 64, 96] : [28, 40, 58], { edgeAlpha: hot ? 0.4 : 0.2, emis: hot ? 0.08 : 0 });
+      S.box(xs[i], s.h, Z, 68, 6, 58, s.col, { emis: hot ? 0.75 : 0.18, edgeAlpha: hot ? 0.6 : 0.3, alpha: hot ? 1 : 0.7 });
+      if (hot) S.ring(xs[i], s.h + 7, Z, 40, s.col, { alpha: 0.35, width: 1.3 });
+      S.number(s.n, xs[i] - 26, s.h / 2, Z - 28, s.col, { r: 9 });
+      if (w < 640) return; /* phones: numbers only; the step list above names them */
+      S.tag(s.label.toUpperCase(), xs[i], s.h + 30, Z, {
+        size: 10.5, color: S.rgb(s.col, hot ? 1 : 0.85),
+        sub: s.sub, subSize: 8, bgFill: hot ? "rgba(10,18,30,.9)" : "rgba(7,12,20,.72)",
+      });
+    });
+
+    /* the request: one packet walking the lane, a ring dropping at memory */
+    S.flow(lane, t, STAGES[active].col, { r: 4.2, trail: 9, spread: 0.06 });
+    S.particles(now, { n: 12, top: 110, alpha: 0.07, x0: -470, x1: 470, z0: -60, z1: 60 });
   });
 })();
 </script>

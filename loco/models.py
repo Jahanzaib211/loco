@@ -73,6 +73,14 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         "chain leader · agentic tools 8/10 · role 6/8 (measured)",
         16_384, 8_995, 37, "q8_0",
         ("hermes4", "hermes-4-14b", "hermes-4", "hermes")),
+    # Lab smoke model, CPU only (the test container has no GPU): SmolLM2-135M-
+    # Instruct Q4_K_M, 100 MiB, measured 147 tok/s generation on 8 CPU threads
+    # with llama.cpp CPU-only. It is a path check, not a quality model: it is in
+    # no routing chain and is served only when it is asked for by name.
+    "smollm2-135m-instruct": ModelSpec(
+        "smollm2-135m-instruct", "llama-cpp",
+        "lab smoke · CPU only · explicit only",
+        4_096, 0, 147, "f16", ("smollm2",)),
 }
 
 # Embedding model is deliberately not a chat-completions target.
@@ -107,6 +115,31 @@ def canonical_model_id(model_id: str) -> str:
 
 def known_model(model_id: str) -> ModelSpec | None:
     return MODEL_SPECS.get(canonical_model_id(model_id))
+
+
+def same_model(left: str, right: str) -> bool:
+    """Whether two model identifiers name the same model.
+
+    Backends may report a model under its canonical id, an alias or a
+    differently cased name; all of those are the same model. This is what
+    lets Loco check that a backend really answered with the model the caller
+    asked for.
+    """
+    if not left or not right:
+        return False
+    canonical_left = canonical_model_id(left)
+    canonical_right = canonical_model_id(right)
+    if canonical_left.lower() == canonical_right.lower():
+        return True
+    spec_left = MODEL_SPECS.get(canonical_left)
+    spec_right = MODEL_SPECS.get(canonical_right)
+    names_left = {canonical_left.lower()}
+    names_right = {canonical_right.lower()}
+    if spec_left:
+        names_left.update(alias.lower() for alias in spec_left.aliases)
+    if spec_right:
+        names_right.update(alias.lower() for alias in spec_right.aliases)
+    return bool(names_left & names_right)
 
 
 def require_chat_model(model_id: str) -> ModelSpec:
