@@ -73,6 +73,14 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         "chain leader · agentic tools 8/10 · role 6/8 (measured)",
         16_384, 8_995, 37, "q8_0",
         ("hermes4", "hermes-4-14b", "hermes-4", "hermes")),
+    # Lab smoke model, CPU only (the test container has no GPU): SmolLM2-135M-
+    # Instruct Q4_K_M, 100 MiB, measured 147 tok/s generation on 8 CPU threads
+    # with llama.cpp CPU-only. It is a path check, not a quality model: it is in
+    # no routing chain and is served only when it is asked for by name.
+    "smollm2-135m-instruct": ModelSpec(
+        "smollm2-135m-instruct", "llama-cpp",
+        "lab smoke · CPU only · explicit only",
+        4_096, 0, 147, "f16", ("smollm2",)),
 }
 
 # Embedding model is deliberately not a chat-completions target.
