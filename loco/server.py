@@ -16,6 +16,7 @@ GET  /metrics               prometheus-ish plaintext
 GET  /ui[/...]              the Loco lab UI
 """
 import json, time, traceback, urllib.error, urllib.request, subprocess, shutil
+import os
 from pathlib import Path
 import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -32,7 +33,7 @@ from . import flywheel
 from . import __version__
 from .models import (AUTO_MODEL, EMBEDDING_MODELS, EmbeddingModelNotChatCapable,
                      MODEL_SPECS, ModelNotFoundError, canonical_model_id,
-                     chat_model_payload, known_model, model_ids)
+                     chat_model_payload, known_model, model_ids, same_model)
 from .routing import ModelFitError, UnsupportedCapabilityError
 
 START = time.time()
@@ -41,6 +42,48 @@ CHAT_MODELS = model_ids()
 
 def _gpu():
     return telemetry.snapshot()
+
+
+def _served_model(raw) -> str:
+    """The model id a backend reported in a JSON completion body."""
+    try:
+        payload = json.loads(raw if isinstance(raw, (str, bytes)) else raw.decode())
+    except Exception:
+        return ""
+    return str(payload.get("model") or "") if isinstance(payload, dict) else ""
+
+
+def _served_model_sse(line) -> str:
+    """The model id a backend reported in the first SSE chunk of a stream."""
+    if line is None:
+        return ""
+    text = line.decode("utf-8", errors="replace") if isinstance(line, bytes) else str(line)
+    if not text.startswith("data:"):
+        return ""
+    data_text = text[5:].strip()
+    if data_text in {"[DONE]", ""}:
+        return ""
+    try:
+        parsed = json.loads(data_text)
+    except json.JSONDecodeError:
+        return ""
+    return str(parsed.get("model") or "") if isinstance(parsed, dict) else ""
+
+def _select_compaction_model(prompt: str):
+    """Pick the model that summarizes a chat transcript.
+
+    LOCO_COMPACT_MODEL names the preferred model (default: the mid-reasoning
+    ornith recipe). When the backend does not have it, compaction falls back
+    to any model the backend really has - the same rule auto routing follows -
+    and the response says which model summarized.
+    """
+    preferred = os.environ.get("LOCO_COMPACT_MODEL", "ornith-1.5-9b")
+    payload = {"messages": [{"role": "user", "content": prompt}]}
+    try:
+        return routing.select_model({"model": preferred, **payload})
+    except routing.ModelNotAvailableError:
+        return routing.select_model({"model": AUTO_MODEL, **payload})
+
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -423,6 +466,14 @@ class Handler(BaseHTTPRequestHandler):
         except ModelFitError as exc:
             self._overloaded(exc, t0, gpu, trace)
             return
+        except routing.ModelNotAvailableError as exc:
+            # The backend is up but does not have the model that was asked
+            # for. Answer with an explicit error - never another model.
+            self._err(str(exc), 503, "model_not_available",
+                      {"model": exc.model, "available": exc.available})
+            if trace:
+                trace.fail("model_not_available", str(exc), model=exc.model)
+            return
         if decision is None:
             # _select_chat already sent a 400 response.
             return
@@ -440,6 +491,14 @@ class Handler(BaseHTTPRequestHandler):
         if not stream and self._safe_float(payload.get("temperature"), 1.0) == 0.0:
             cached = memory.cache_get(model, payload.get("messages", []))
             if cached is not None:
+                served = _served_model(cached)
+                if served and not same_model(served, model):
+                    # A cached answer produced by another model must not be
+                    # served under this model's name.
+                    self._err(f"cached answer was produced by {served}, not {model}",
+                              502, "model_not_served",
+                              {"requested": model, "served": served})
+                    return
                 trace.cache_hit(model, bname, decision.task)
                 memory.log_route(decision.task, model, bname, "cache-hit",
                                  None, None, (time.time() - t0) * 1000,1,
@@ -456,6 +515,19 @@ class Handler(BaseHTTPRequestHandler):
                                           gpu, trace)
             raw = backend.chat_completions(backend_url, payload)
             resp = json.loads(raw)
+            served = str(resp.get("model") or "")
+            if served and not same_model(served, model):
+                # The backend answered with a different model than the one
+                # that was requested - for example a llama.cpp server that
+                # ignores the model field and serves what it has loaded.
+                # That is an explicit error now, never a 200 with the wrong
+                # model in it.
+                self._err(f"backend served {served} instead of {model}",
+                          502, "model_not_served",
+                          {"requested": model, "served": served})
+                if trace:
+                    trace.fail("model_not_served", served, model=model)
+                return
             if self._safe_float(payload.get("temperature"), 1.0) == 0.0:
                 memory.cache_put(model, payload.get("messages", []), raw.decode())
             usage = resp.get("usage") or {}
@@ -483,6 +555,22 @@ class Handler(BaseHTTPRequestHandler):
             self._err(f"backend unreachable: {e}", 502, "backend_unreachable")
 
     def _stream_proxy(self, backend_url, payload, t0, decision, gpu, trace):
+        lines = backend.stream_chat_completions(backend_url, payload)
+        # Peek at the first SSE payload before any header is sent: if the
+        # backend is answering with a different model than the one that was
+        # requested, the client must get an error, not a stream that quietly
+        # carries another model's answer.
+        first = next(lines, None)
+        if first is not None:
+            served = _served_model_sse(first)
+            if served and not same_model(served, decision.model):
+                self._err(f"backend served {served} instead of {decision.model}",
+                          502, "model_not_served",
+                          {"requested": decision.model, "served": served})
+                if trace:
+                    trace.fail("model_not_served", served, model=decision.model)
+                return
+
         self.send_response(200)
         for name, value in self._loco_headers(decision, trace=trace):
             self.send_header(name, value)
@@ -531,7 +619,15 @@ class Handler(BaseHTTPRequestHandler):
                     current["function"] = function
 
         try:
-            for line in backend.stream_chat_completions(backend_url, payload):
+            if first is not None:
+                raw_len += len(first)
+                if captured is not None and len(captured) + len(first) <= flywheel.MAX_TRACE_BYTES:
+                    captured += first
+                _capture_sse_line(first)
+                self.wfile.write(first)
+                self.wfile.flush()
+                n += 1
+            for line in lines:
                 raw_len += len(line)
                 if captured is not None and len(captured) + len(line) <= flywheel.MAX_TRACE_BYTES:
                     captured += line
@@ -608,9 +704,10 @@ class Handler(BaseHTTPRequestHandler):
             "names, paths, decisions, numbers, preferences, open questions. No greetings. "
             "Output ONLY the brief, plain text, ≤300 words.\n\n" + transcript)
         try:
-            compact_target = routing.select_model(
-                {"model": "ornith-1.5-9b", "messages": [
-                    {"role": "user", "content": summary_prompt}]})
+            # The compaction model is Loco's own choice, so it may fall back to
+            # any model the backend really has - like auto routing does. The
+            # model that actually summarized is reported in the response.
+            compact_target = _select_compaction_model(summary_prompt)
             compact_backend = (
                 C.endpoints()["ollama"] if compact_target.backend == "ollama"
                 else C.endpoints()["llama-cpp"])
@@ -628,7 +725,7 @@ class Handler(BaseHTTPRequestHandler):
         summary_msg = {"role": "system",
                        "content": "MEMORY BRIEF (auto-compacted):\n" + brief.strip()}
         self._json({"messages": system + [summary_msg] + pinned_msgs + recent,
-                    "compacted": len(older)})
+                    "compacted": len(older), "model": compact_target.model})
 
     def _madd(self):
         payload = self._read_json()

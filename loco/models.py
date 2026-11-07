@@ -117,6 +117,31 @@ def known_model(model_id: str) -> ModelSpec | None:
     return MODEL_SPECS.get(canonical_model_id(model_id))
 
 
+def same_model(left: str, right: str) -> bool:
+    """Whether two model identifiers name the same model.
+
+    Backends may report a model under its canonical id, an alias or a
+    differently cased name; all of those are the same model. This is what
+    lets Loco check that a backend really answered with the model the caller
+    asked for.
+    """
+    if not left or not right:
+        return False
+    canonical_left = canonical_model_id(left)
+    canonical_right = canonical_model_id(right)
+    if canonical_left.lower() == canonical_right.lower():
+        return True
+    spec_left = MODEL_SPECS.get(canonical_left)
+    spec_right = MODEL_SPECS.get(canonical_right)
+    names_left = {canonical_left.lower()}
+    names_right = {canonical_right.lower()}
+    if spec_left:
+        names_left.update(alias.lower() for alias in spec_left.aliases)
+    if spec_right:
+        names_right.update(alias.lower() for alias in spec_right.aliases)
+    return bool(names_left & names_right)
+
+
 def require_chat_model(model_id: str) -> ModelSpec:
     canonical = canonical_model_id(model_id)
     if canonical in EMBEDDING_MODELS or "embed" in model_id.lower():

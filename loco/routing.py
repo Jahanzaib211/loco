@@ -47,6 +47,21 @@ class ModelFitError(RuntimeError):
         self.fallback_candidates = fallback_candidates
 
 
+class ModelNotAvailableError(RuntimeError):
+    """Raised when the backend is up but does not have the requested model.
+
+    This is the answer to "you asked for a model Loco cannot serve": an
+    explicit error, never a different model.
+    """
+
+    def __init__(self, model: str, available: list[str], message: str | None = None):
+        self.model = model
+        self.available = available
+        super().__init__(message or (
+            f"model {model!r} is not available on the backend; "
+            f"available: {', '.join(available) if available else 'none'}"))
+
+
 @dataclass(frozen=True)
 class RouteDecision:
     model: str
@@ -285,6 +300,15 @@ def _raise_overloaded(spec: ModelSpec, current: dict, tried: list[str]) -> None:
     )
 
 
+def _availability() -> dict:
+    """model id -> True/False/None (available / missing / backend unreachable)."""
+    from . import catalogue
+    try:
+        return catalogue.availability()
+    except Exception:
+        return {}
+
+
 def _choose(chain: list[str], task: str, explicit: bool) -> RouteDecision:
     if not chain:
         raise ModelFitError(
@@ -293,8 +317,28 @@ def _choose(chain: list[str], task: str, explicit: bool) -> RouteDecision:
 
     current = query_vram()
     admitted: list[str] = []
+    skipped: list[str] = []
+    availability = _availability()
+
+    def _servable(model_id: str) -> bool:
+        """Whether the backend can serve this model.
+
+        False only when the backend answered its catalogue and the model is
+        not in it. None (backend unreachable) is treated as servable, so a
+        dead backend still surfaces as a backend error instead of a wrong
+        "not available" answer.
+        """
+        info = availability.get(model_id)
+        if not info:
+            return True
+        return info.get("available") is not False
 
     for model_id in chain:
+        if not _servable(model_id):
+            # The backend is up and does not have this model: skip it rather
+            # than forward a request that another model would answer.
+            skipped.append(model_id)
+            continue
         spec = MODEL_SPECS[model_id]
         if spec.backend == "ollama" and is_ollama_resident(spec.id):
             return RouteDecision(
@@ -331,7 +375,44 @@ def _choose(chain: list[str], task: str, explicit: bool) -> RouteDecision:
         admitted.append(spec.id)
         current = fresh_measurement
 
+    def _available_ids() -> list:
+        return [model_id for model_id in MODEL_SPECS
+                if availability.get(model_id, {}).get("available") is True]
+
+    if skipped and len(skipped) == len(chain):
+        # Every candidate is known-missing on the backend.
+        available = _available_ids()
+        if explicit:
+            # An explicit request never silently degrades to another model.
+            raise ModelNotAvailableError(chain[0], available)
+        if available:
+            spec = MODEL_SPECS[available[0]]
+            return RouteDecision(
+                spec.id, spec.backend, task, explicit,
+                confidence=0.5,
+                action="ok-available-fallback",
+                reason="no chain model is available on the backend; "
+                       "auto routing picked an available model",
+                vram=current, fallback_candidates=tuple(skipped))
+        raise ModelNotAvailableError(chain[0], available)
+
     fallback = MODEL_SPECS["lfm3-1.7b"]
+    if not _servable(fallback.id):
+        # The capacity fallback is not on the backend either: use whatever the
+        # backend really has, or say so.
+        available = _available_ids()
+        if explicit:
+            raise ModelNotAvailableError(chain[0], available)
+        if not available:
+            raise ModelNotAvailableError(chain[0], available)
+        spec = MODEL_SPECS[available[0]]
+        return RouteDecision(
+            spec.id, spec.backend, task, explicit,
+            confidence=0.6,
+            action="degraded-available-fallback",
+            reason="the capacity fallback model is not on the backend; "
+                   "routing picked an available model",
+            vram=current, fallback_candidates=tuple(admitted))
     allowed, reason, fresh = can_load(
         fallback, current, headroom_mib=DEFAULT_HEADROOM_MIB)
     if allowed:
