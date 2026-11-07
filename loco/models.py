@@ -61,6 +61,18 @@ MODEL_SPECS: dict[str, ModelSpec] = {
         "Underdog-Saluki-27B-1.0-IQ2-mix", "llama-cpp",
         "benchmark candidate · explicit only",
         16_384, 8_921, 23, "q8_0", ("saluki",)),
+    # Hermes 4 14B (NousResearch, qwen3 arch, IQ4_XS file_type 30, 8.11 GB).
+    # GGUF header: 40 layers, 5120 emb, 40/8 heads GQA, key 128, 40960 native
+    # ctx, text-only (no vision keys). 16k @ q8_0 KV fits 11088 MiB usable
+    # (~8995 MiB measured resident delta). Promoted to auto-chain leader
+    # (2026-11-07, measured): agentic tools 8/10 best, role 6/8 ties Nemotron;
+    # tradeoffs: 9.0GB/37t/s/16k vs Nemotron 4.3GB/71t/s/32k, unguided math +
+    # safe-002 (forbidden-tool) misses. Explicit selection always honored.
+    "hermes-4-14b-iq4_xs": ModelSpec(
+        "hermes-4-14b-iq4_xs", "llama-cpp",
+        "chain leader · agentic tools 8/10 · role 6/8 (measured)",
+        16_384, 8_995, 37, "q8_0",
+        ("hermes4", "hermes-4-14b", "hermes-4", "hermes")),
 }
 
 # Embedding model is deliberately not a chat-completions target.
@@ -111,7 +123,11 @@ def require_chat_model(model_id: str) -> ModelSpec:
 
 
 def chat_model_payload() -> list[dict]:
-    """Return the OpenAI-compatible model list for the chat API."""
+    """Return the OpenAI-compatible model list for the chat API.
+
+    Includes measured display facts so the UI can be server-driven and never
+    drift from the registry when a model is added or re-measured.
+    """
     return [
         {
             "id": model.id,
@@ -119,6 +135,12 @@ def chat_model_payload() -> list[dict]:
             "owned_by": "loco-recipe",
             "permission": [],
             "context_length": model.context_tokens,
+            "role": model.role,
+            "backend": model.backend,
+            "vram_mib_est": model.vram_mib_est,
+            "tokens_per_second": model.tokens_per_second,
+            "kv_cache": model.kv_cache,
+            "aliases": list(model.aliases),
         }
         for model in MODEL_SPECS.values()
     ]

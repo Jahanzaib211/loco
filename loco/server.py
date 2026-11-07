@@ -782,25 +782,30 @@ class Handler(BaseHTTPRequestHandler):
         if not model.startswith("huihui_ai/"):
             # The llama router spawns one child per model and does not evict for
             # VRAM: a resident sibling makes the new child OOM with a bare 500.
-            # Secure measured headroom first, exactly as chat admission does.
+            # Enforce one-resident: if a different llama-cpp model is requested,
+            # evict current siblings first, then secure measured headroom.
             spec = known_model(model)
             if spec is None:
                 self._err(f"model {model} is not configured", 400, "model_not_found"); return
             model = spec.id
             if spec.backend == "llama-cpp" and not routing.is_llama_resident(spec.id):
-                allowed, reason, state = capacity.can_load(spec)
-                if not allowed:
-                    evicted_mib = routing.try_unload_llama()
-                    time.sleep(0.5)
+                evicted_mib = routing.try_unload_llama()
+                # Poll for VRAM release (9GB leaders can take >1s to free).
+                deadline = time.time() + (8.0 if evicted_mib else 1.5)
+                state = {}
+                while True:
                     allowed, reason, state = capacity.can_load(spec)
-                    if not allowed:
-                        self._err(
-                            f"refusing to load {spec.id}: {reason}", 503, "overloaded",
-                            {"model": spec.id, "evicted_mib": evicted_mib,
-                             "free_mib": state.get("free_mib"),
-                             "required_mib": spec.vram_mib_est,
-                             "headroom_mib": capacity.DEFAULT_HEADROOM_MIB})
-                        return
+                    if allowed or time.time() >= deadline:
+                        break
+                    time.sleep(0.4)
+                if not allowed:
+                    self._err(
+                        f"refusing to load {spec.id}: {reason}", 503, "overloaded",
+                        {"model": spec.id, "evicted_mib": evicted_mib,
+                         "free_mib": state.get("free_mib") if isinstance(state, dict) else None,
+                         "required_mib": spec.vram_mib_est,
+                         "headroom_mib": capacity.DEFAULT_HEADROOM_MIB})
+                    return
         try:
             if model.startswith("huihui_ai/"):
                 req = urllib.request.Request(

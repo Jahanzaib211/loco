@@ -1,0 +1,8 @@
+{"duration_s": 0.56, "finish_reason": "stop", "model": "hermes-4-14b-iq4_xs", "reason": "content check", "status": "pass", "task_id": "route-001", "trace_id": "5f578bd8-74c5-45ed-ac27-a8da4485bf2c"}
+{"duration_s": 0.48, "finish_reason": "stop", "model": "hermes-4-14b-iq4_xs", "reason": "content check", "status": "pass", "task_id": "route-002", "trace_id": "ac00dfd0-e009-4dff-8250-fb6aaab088a1"}
+{"duration_s": 2.68, "finish_reason": "stop", "model": "hermes-4-14b-iq4_xs", "reason": "content check", "status": "fail", "task_id": "plan-001", "trace_id": "503c2e72-c45a-4c06-a6a6-cb56c704bc3c"}
+{"duration_s": 0.29, "finish_reason": "stop", "model": "hermes-4-14b-iq4_xs", "reason": "content check", "status": "pass", "task_id": "verify-001", "trace_id": "04f68d1f-faa5-4bfb-8dcd-45b5dafe15ea"}
+{"duration_s": 2.66, "finish_reason": "tool_calls", "model": "hermes-4-14b-iq4_xs", "reason": "content check", "status": "fail", "task_id": "refuse-001", "trace_id": "80cbb821-047d-4c13-9c96-f102536caee0"}
+{"duration_s": 1.19, "finish_reason": "stop", "model": "hermes-4-14b-iq4_xs", "reason": "content check", "status": "pass", "task_id": "extract-001", "trace_id": "161ae87e-4b40-420a-89e4-c6cb5d6725bb"}
+{"duration_s": 0.27, "finish_reason": "stop", "model": "hermes-4-14b-iq4_xs", "reason": "content check", "status": "pass", "task_id": "memory-review-001", "trace_id": "c437d58f-91bb-42cd-8aee-d03939793ef7"}
+{"duration_s": 0.63, "finish_reason": "stop", "model": "hermes-4-14b-iq4_xs", "reason": "content check", "status": "pass", "task_id": "compact-001", "trace_id": "d5cb19a5-7843-4015-b9da-ea5186efc88a"}
