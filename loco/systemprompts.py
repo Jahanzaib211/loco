@@ -1,8 +1,14 @@
-"""Per-model system prompts — markdown, editable via UI, injected at request time."""
+"""Per-model system prompts — markdown, editable via UI, injected at request time.
+
+The directory is configurable with LOCO_SYSTEM_PROMPTS_DIR so Loco is not pinned
+to one user's home directory; the default keeps the original location.
+"""
+import os
 import re
 from pathlib import Path
 
-DIR = Path("/home/jahanzaib/models/system-prompts")
+DIR = Path(os.environ.get("LOCO_SYSTEM_PROMPTS_DIR",
+                           "/home/jahanzaib/models/system-prompts"))
 
 def _file(model: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", model)
