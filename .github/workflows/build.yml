@@ -1,0 +1,21 @@
+name: build
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Hardened UI build (locked to server routes) + drift check
+        run: node scripts/build-ui --check --with-py
+      - name: Python compile (core + tooling)
+        run: python3 -m py_compile loco/models.py loco/routing.py loco/server.py loco/capacity.py scripts/vram-watcher.py scripts/capability-audit.py

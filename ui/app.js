@@ -101,16 +101,19 @@ function flash(el                    )       {
   setTimeout(() => el.classList.remove("flash"), 650);
 }
 
-/** Every brain the lab can serve. Roles are measured, not guessed. */
-const MODELS             = [
+/** Every brain the lab can serve. Roles are measured, not guessed.
+ *  Bootstrapped from /v1/models at runtime so newly registered models
+ *  appear without a UI rebuild; this list is the offline fallback. */
+let MODELS             = [
   { id: "loco:auto", name: "Loco Auto", role: "router decides", backend: "auto" },
-  { id: "huihui_ai/gemma-4-abliterated:e4b", name: "Flagship — Local Main Candidate A", role: "flagship chat · vision", backend: "managed backend :11434" },
-  { id: "deepseek-r1-14b", name: "Axiom — Large Reasoner", role: "reasoning · math · code", backend: "local GGUF stack :8080" },
-  { id: "phi4-mini-3.8b", name: "Scout — Balanced Small", role: "general small · 65k ctx", backend: "local GGUF stack :8080" },
-  { id: "lfm3-1.7b", name: "Sparrow — Fastest Lightweight", role: "routing · extract · fast", backend: "local GGUF stack :8080" },
-  { id: "ornith-1.5-9b", name: "Orbit — Main General Lane", role: "mid reasoning · 65k", backend: "local GGUF stack :8080" },
-  { id: "nemotron-3.5-bolt-e4b", name: "Bolt — Primary General Lane", role: "chat · math · code · longdoc first", backend: "local GGUF stack :8080" },
-  { id: "bonsai-2-9b", name: "Bonsai — Benchmarked Low", role: "mid general", backend: "local GGUF stack :8080" },
+  { id: "hermes-4-14b-iq4_xs", name: "Hermes 4 14B — Chain Leader", role: "agentic tools 8/10 · role 6/8 · 16k · ~37 t/s (measured)", backend: "local GGUF stack :8080" },
+  { id: "nemotron-3.5-bolt-e4b", name: "Bolt — Fast Fallback Lane", role: "fallback · 71 t/s · 32k · 4.3GB", backend: "local GGUF stack :8080" },
+  { id: "huihui_ai/gemma-4-abliterated:e4b", name: "Flagship — Vision Lane", role: "flagship chat · vision (embedded, only)", backend: "managed backend :11434" },
+  { id: "ornith-1.5-9b", name: "Orbit — Reasoning/Compact Fallback", role: "mid reasoning · 65k · fallback", backend: "local GGUF stack :8080" },
+  { id: "lfm3-1.7b", name: "Sparrow — Fastest Fallback", role: "routing · extract · 155 t/s · fallback", backend: "local GGUF stack :8080" },
+  { id: "deepseek-r1-14b", name: "Axiom — Large Reasoner", role: "reasoning · math · code · explicit", backend: "local GGUF stack :8080" },
+  { id: "phi4-mini-3.8b", name: "Scout — Balanced Small", role: "general small · 65k ctx · explicit", backend: "local GGUF stack :8080" },
+  { id: "bonsai-2-9b", name: "Bonsai — Benchmarked Low", role: "reasoning (text) · no vision · explicit", backend: "local GGUF stack :8080" },
   { id: "Underdog-Saluki-27B-1.0-IQ2-mix", name: "Candidate — Benchmark Lane", role: "heavy role specialist · explicit only", backend: "local GGUF stack :8080" },
 ];
 
@@ -119,6 +122,34 @@ function modelOptions(sel        )         {
   return MODELS.map(
     (m) => `<option value="${esc(m.id)}"${m.id === sel ? " selected" : ""}>${esc(m.name)} (${esc(m.id)})</option>`
   ).join("");
+}
+
+/** Pull the live registry so new models appear without a rebuild. */
+async function refreshModelsFromServer()                {
+  try {
+    const r = await api("/v1/models");
+    const data        = r.data?.data || [];
+    if (!data.length) return;
+    const known = new Map(MODELS.map((m) => [m.id, m]));
+    const merged             = [known.get("loco:auto") || { id: "loco:auto", name: "Loco Auto", role: "router decides", backend: "auto" }];
+    for (const m of data) {
+      if (m.id === "bge-small-en-v1.5") continue; // embedding, not a chat target
+      const k = known.get(m.id);
+      merged.push({
+        id: m.id,
+        name: k?.name || m.id,
+        role: (m.role          ) || k?.role || "registered",
+        backend: (m.backend          ) || k?.backend || "local",
+      });
+    }
+    MODELS = merged;
+    // re-render any model selects that were populated from modelOptions()
+    document.querySelectorAll("select").forEach((sel) => {
+      const cur = sel.value;
+      if (!Array.from(sel.options).some((o) => o.value === "loco:auto")) return;
+      sel.innerHTML = modelOptions(cur || "loco:auto");
+    });
+  } catch { /* offline fallback stays */ }
 }
 
 /** Sidebar navigation. href ends with the page's data-active value. */
@@ -143,6 +174,7 @@ function renderNav(active        )       {
 }
 document.addEventListener("DOMContentLoaded", () => {
   renderNav(document.body.dataset.active || "");
+  refreshModelsFromServer();
   /* stamp the running version into every page footer */
   api("/health").then((r) => {
     const v = r.data?.version;

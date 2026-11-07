@@ -1,0 +1,22 @@
+{
+  "baseline": null,
+  "baseline_summary": null,
+  "candidate": "results/agentic-tool-hermes-4-14b-iq4_xs.jsonl",
+  "candidate_summary": {
+    "error": 0,
+    "fail": 2,
+    "pass": 8,
+    "pass_rate": 0.8,
+    "total": 10
+  },
+  "created_at": 1794054536.4044223,
+  "flips": null,
+  "gate": {
+    "passed": false,
+    "reasons": [
+      "no baseline recorded \u2014 absolute floor only"
+    ]
+  },
+  "max_drop_points": 5.0,
+  "min_rate": 0.5
+}

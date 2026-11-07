@@ -93,6 +93,10 @@ def classify(messages: list[dict] | None) -> str:
     return "chat"
 
 
+# Hermes 4 14B promoted to chain leader (2026-11-07, measured): agentic tools
+# 8/10 (best), role 6/8 (ties Nemotron). Tradeoff: 9.0GB/37t/s/16k ctx vs
+# Nemotron 4.3GB/71t/s/32k — higher VRAM, slower, smaller ctx; unguided math
+# and safe-002 (forbidden tool) misses observed. Fallbacks preserve prior order.
 _CHAINS = {
     "vision": [
         "nemotron-3.5-bolt-e4b",
@@ -100,26 +104,31 @@ _CHAINS = {
         "lfm3-1.7b",
     ],
     "math": [
+        "hermes-4-14b-iq4_xs",
         "nemotron-3.5-bolt-e4b",
         "ornith-1.5-9b",
         "lfm3-1.7b",
     ],
     "code": [
+        "hermes-4-14b-iq4_xs",
         "nemotron-3.5-bolt-e4b",
         "ornith-1.5-9b",
         "lfm3-1.7b",
     ],
     "compact": [
+        "hermes-4-14b-iq4_xs",
         "ornith-1.5-9b",
         "nemotron-3.5-bolt-e4b",
         "lfm3-1.7b",
     ],
     "longdoc": [
+        "hermes-4-14b-iq4_xs",
         "nemotron-3.5-bolt-e4b",
         "ornith-1.5-9b",
         "lfm3-1.7b",
     ],
     "chat": [
+        "hermes-4-14b-iq4_xs",
         "nemotron-3.5-bolt-e4b",
         "ornith-1.5-9b",
         "lfm3-1.7b",

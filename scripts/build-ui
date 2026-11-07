@@ -341,14 +341,69 @@ function buildCatalog() {
 }
 
 /* ------------------------------------------------------------- run ------ */
+function parseArgs(argv) {
+  return { check: argv.includes("--check"), withPy: argv.includes("--with-py") };
+}
+
+function verifyOutputs(catalog) {
+  const problems = [];
+  const expectJs = ["app.js", "index.js", "scene.js", "api.js"];
+  for (const f of expectJs) {
+    const p = path.join(UI_DIR, f);
+    if (!fs.existsSync(p)) problems.push(`missing output ${f}`);
+    else if (fs.statSync(p).size < 64) problems.push(`suspiciously small output ${f}`);
+  }
+  if (!catalog || !Array.isArray(catalog.groups) || catalog.count < 1) {
+    problems.push("endpoints catalog missing groups/count");
+  }
+  const ep = path.join(UI_DIR, "endpoints.json");
+  try { JSON.parse(fs.readFileSync(ep, "utf8")); } catch (e) { problems.push(`endpoints.json invalid: ${e.message}`); }
+  // route catalog must stay in lockstep with server.py (parseRoutes/buildCatalog already enforced)
+  if (catalog.count < 20) problems.push(`unexpectedly small route catalog (${catalog.count})`);
+  if (problems.length) throw new Error("build verification failed:\n  - " + problems.join("\n  - "));
+}
+
+function checkPyCompile() {
+  const { spawnSync } = require("node:child_process");
+  const targets = [
+    "loco/models.py", "loco/routing.py", "loco/server.py", "loco/capacity.py",
+    "scripts/vram-watcher.py", "scripts/capability-audit.py",
+  ].filter((f) => fs.existsSync(path.join(ROOT, f)));
+  const r = spawnSync("python3", ["-m", "py_compile", ...targets], { cwd: ROOT, encoding: "utf8" });
+  if (r.status !== 0) throw new Error(`py_compile failed:\n${(r.stdout||"") + (r.stderr||"")}`);
+  return targets.length;
+}
+
+function checkGitClean(outputs) {
+  const { spawnSync } = require("node:child_process");
+  const r = spawnSync("git", ["diff", "--exit-code", "--", ...outputs], { cwd: ROOT, encoding: "utf8" });
+  if (r.status !== 0) {
+    throw new Error("--check: generated outputs differ from committed state (run `node scripts/build-ui` and commit):\n" + (r.stdout || "").slice(0, 1200));
+  }
+}
+
 function main() {
-  console.log("build-ui: compiling ui/ts → ui/*.js");
+  const args = parseArgs(process.argv.slice(2));
+  console.log(`build-ui: compiling ui/ts → ui/*.js${args.check ? " [--check]" : ""}`);
   for (const line of compileTs()) console.log("  ✓ " + line);
 
   console.log("build-ui: generating ui/endpoints.json from loco/server.py");
   const catalog = buildCatalog();
   fs.writeFileSync(path.join(UI_DIR, "endpoints.json"), JSON.stringify(catalog, null, 1) + "\n");
   console.log(`  ✓ ${catalog.count} routes across ${catalog.groups.length} groups`);
+
+  verifyOutputs(catalog);
+  console.log("  ✓ outputs verified (js present/parseable, endpoints.json valid, catalog locked to server.py)");
+
+  if (args.withPy) {
+    const n = checkPyCompile();
+    console.log(`  ✓ py_compile ok (${n} targets)`);
+  }
+
+  if (args.check) {
+    checkGitClean(["ui/app.js", "ui/index.js", "ui/scene.js", "ui/api.js", "ui/endpoints.json"]);
+    console.log("  ✓ --check: generated outputs match committed state");
+  }
 
   console.log("build-ui: ok");
 }
