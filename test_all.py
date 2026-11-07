@@ -49,10 +49,26 @@ else:
     print(f"   ✗ {c} {body}")
     sys.exit(1)
 
+# The suite must run on the machine it is run on: pick a chat model the
+# backend really has, instead of a hardcoded one that may only be a preset.
+def pick_chat_model(payload):
+    for entry in payload.get("data", []):
+        if entry.get("embedding"):
+            continue
+        if entry.get("id") in (None, "loco:auto", "auto"):
+            continue
+        if entry.get("available") is False:
+            continue
+        return entry["id"]
+    return None
+
+CHAT_MODEL = pick_chat_model(data) or "lfm3-1.7b"
+print(f"   ✓ chat model under test: {CHAT_MODEL}")
+
 # 3) Chat (non-stream)
 print("3. Chat (non-stream) ...")
 resp = http_post_json("/v1/chat/completions", {
-    "model": "lfm3-1.7b",
+    "model": CHAT_MODEL,
     "messages": [{"role": "user", "content": "hello"}],
     "temperature": 0.0,
     "max_tokens": 10
@@ -216,16 +232,16 @@ hit("POST /v1/tools/call", "POST", "/v1/tools/call",
     {"tool": "calculate", "params": {"expr": "6 * 7"}})
 
 # Control lifecycle: load -> status -> config write (no-op) -> prompt put -> unload
-hit("POST /v1/control/load", "POST", "/v1/control/load", {"model": "lfm3-1.7b"})
+hit("POST /v1/control/load", "POST", "/v1/control/load", {"model": CHAT_MODEL})
 hit("GET /v1/control/status (warm)", "GET", "/v1/control/status")
 hit("POST /v1/control/config", "POST", "/v1/control/config",
-    {"model": "lfm3-1.7b", "flags": {}})
+    {"model": CHAT_MODEL, "flags": {}})
 _, b, _ = hit("GET /v1/control/prompt (read back)", "GET",
-              "/v1/control/prompt?model=lfm3-1.7b")
+              f"/v1/control/prompt?model={CHAT_MODEL}")
 prompt_content = jload(b).get("content")
 hit("POST /v1/control/prompt", "POST", "/v1/control/prompt",
-    {"model": "lfm3-1.7b", "content": prompt_content or ""})
-hit("POST /v1/control/unload", "POST", "/v1/control/unload", {"model": "lfm3-1.7b"})
+    {"model": CHAT_MODEL, "content": prompt_content or ""})
+hit("POST /v1/control/unload", "POST", "/v1/control/unload", {"model": CHAT_MODEL})
 
 # Fresh auto chat: proves message -> route -> model -> trace, then trace feedback
 nonce = f"coverage-{time.time()}"
